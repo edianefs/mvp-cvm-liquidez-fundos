@@ -299,15 +299,3 @@ for table_name in [BRONZE_TABLE, SILVER_TABLE, GOLD_DAILY_TABLE, GOLD_SUMMARY_TA
     count = spark.table(table_name).count()
     print(f"{table_name}: {count:,} linhas")
 
-# COMMAND ----------
-# MAGIC %md
-# MAGIC ## Resultado esperado desta etapa
-# MAGIC
-# MAGIC Ao final devem existir quatro tabelas Delta:
-# MAGIC
-# MAGIC - `workspace.cvm_liquidez.bronze_informe_diario`
-# MAGIC - `workspace.cvm_liquidez.silver_informe_diario`
-# MAGIC - `workspace.cvm_liquidez.gold_indicadores_liquidez_diarios`
-# MAGIC - `workspace.cvm_liquidez.gold_resumo_liquidez_fundo`
-# MAGIC
-# MAGIC Os resultados numéricos não são preenchidos antecipadamente para evitar qualquer invenção de valores.
