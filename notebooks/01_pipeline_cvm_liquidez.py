@@ -9,7 +9,6 @@
 # DBTITLE 1,1. Configuração
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
-import requests
 import zipfile
 import os
 from datetime import datetime, timezone
@@ -36,42 +35,71 @@ spark.sql(f"CREATE VOLUME IF NOT EXISTS {CATALOG}.{SCHEMA}.raw")
 print("Estrutura criada/verificada:", BASE_VOLUME)
 
 # COMMAND ----------
-# DBTITLE 3,3. Coletar arquivos da CVM
-headers = {"User-Agent": "MVP-Academico-Databricks/1.0"}
+# DBTITLE 3,3. Preparar arquivos da CVM previamente carregados
+# A Databricks Free Edition restringe o acesso de saída à internet.
+# Por isso, os ZIPs oficiais da CVM são baixados manualmente no computador
+# e enviados pelo usuário para o Volume: /Volumes/workspace/cvm_liquidez/raw
+#
+# Espera-se encontrar, na raiz do Volume, por exemplo:
+#   inf_diario_fi_202607.zip
+#   inf_diario_fi_202608.zip
+#
+# O código abaixo localiza os ZIPs, cria uma pasta por mês e extrai
+# automaticamente o(s) CSV(s) existente(s) dentro de cada ZIP.
 
 for month in MONTHS:
+    zip_name = f"inf_diario_fi_{month}.zip"
+    local_zip = os.path.join(BASE_VOLUME, zip_name)
     month_dir = os.path.join(BASE_VOLUME, month)
+
+    if not os.path.exists(local_zip):
+        raise FileNotFoundError(
+            f"Arquivo não encontrado no Volume: {local_zip}. "
+            f"Faça o upload de {zip_name} para {BASE_VOLUME} antes de executar esta célula."
+        )
+
     os.makedirs(month_dir, exist_ok=True)
 
-    url = f"https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_{month}.zip"
-    local_zip = os.path.join(month_dir, f"inf_diario_fi_{month}.zip")
-    local_csv = os.path.join(month_dir, f"inf_diario_fi_{month}.csv")
+    with zipfile.ZipFile(local_zip, "r") as zf:
+        csv_members = [name for name in zf.namelist() if name.lower().endswith(".csv")]
+        if not csv_members:
+            raise ValueError(f"Nenhum CSV encontrado dentro de {local_zip}")
 
-    if not os.path.exists(local_csv):
-        response = requests.get(url, headers=headers, timeout=180)
-        response.raise_for_status()
-        with open(local_zip, "wb") as fp:
-            fp.write(response.content)
+        for member in csv_members:
+            target_name = os.path.basename(member)
+            target_path = os.path.join(month_dir, target_name)
+            if not os.path.exists(target_path):
+                with zf.open(member) as src, open(target_path, "wb") as dst:
+                    while True:
+                        chunk = src.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        dst.write(chunk)
 
-        with zipfile.ZipFile(local_zip, "r") as zf:
-            csv_members = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-            if not csv_members:
-                raise ValueError(f"Nenhum CSV encontrado em {local_zip}")
-            member = csv_members[0]
-            with zf.open(member) as src, open(local_csv, "wb") as dst:
-                while True:
-                    chunk = src.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    dst.write(chunk)
-
-        print("Baixado e extraído:", month)
-    else:
-        print("CSV já existente; mantendo para reprodutibilidade:", local_csv)
+    print(f"{zip_name}: {len(csv_members)} CSV(s) disponível(is) em {month_dir}")
 
 # COMMAND ----------
 # DBTITLE 4,4. Ler CSVs e formar Bronze
-input_paths = [os.path.join(BASE_VOLUME, m, f"inf_diario_fi_{m}.csv") for m in MONTHS]
+# Localiza os CSVs efetivamente extraídos, sem depender de um nome interno
+# específico dentro do ZIP.
+input_paths = []
+for month in MONTHS:
+    month_dir = os.path.join(BASE_VOLUME, month)
+    csv_files = [
+        os.path.join(month_dir, name)
+        for name in os.listdir(month_dir)
+        if name.lower().endswith(".csv")
+    ]
+    if not csv_files:
+        raise FileNotFoundError(
+            f"Nenhum CSV encontrado em {month_dir}. "
+            f"Verifique se o ZIP de {month} foi extraído corretamente."
+        )
+    input_paths.extend(sorted(csv_files))
+
+print("Arquivos CSV lidos pelo Bronze:")
+for path in input_paths:
+    print(path)
 
 raw_df = (
     spark.read
@@ -84,7 +112,7 @@ raw_df = (
 # Metadados de ingestão, sem alterar as colunas da origem.
 bronze_df = (
     raw_df
-    .withColumn("_source_file", F.input_file_name())
+    .withColumn("_source_file", F.col("_metadata.file_path"))
     .withColumn("_ingestion_ts", F.current_timestamp())
 )
 
@@ -101,9 +129,11 @@ display(spark.table(BRONZE_TABLE).limit(10))
 silver_base = (
     spark.table(BRONZE_TABLE)
     .select(
-        "TP_FUNDO", "CNPJ_FUNDO", "DT_COMPTC", "VL_TOTAL", "VL_QUOTA",
-        "VL_PATRIM_LIQ", "CAPTC_DIA", "RESG_DIA", "NR_COTST", "_source_file", "_ingestion_ts"
+        "TP_FUNDO_CLASSE", "CNPJ_FUNDO_CLASSE", "ID_SUBCLASSE", "DT_COMPTC",
+        "VL_TOTAL", "VL_QUOTA", "VL_PATRIM_LIQ", "CAPTC_DIA", "RESG_DIA",
+        "NR_COTST", "_source_file", "_ingestion_ts"
     )
+    .withColumn("ID_SUBCLASSE", F.col("ID_SUBCLASSE").cast("string"))
     .withColumn("DT_COMPTC", F.to_date("DT_COMPTC"))
     .withColumn("VL_TOTAL", F.col("VL_TOTAL").cast("double"))
     .withColumn("VL_QUOTA", F.col("VL_QUOTA").cast("double"))
@@ -113,10 +143,20 @@ silver_base = (
     .withColumn("NR_COTST", F.col("NR_COTST").cast("long"))
 )
 
+# A partir de 2024 o layout do Informe Diário passou a usar
+# TP_FUNDO_CLASSE e CNPJ_FUNDO_CLASSE e incluiu ID_SUBCLASSE.
+# Por isso a chave natural do MVP considera classe/subclasse + data.
+silver_base = silver_base.withColumn(
+    "ID_SUBCLASSE_CHAVE",
+    F.coalesce(F.trim(F.col("ID_SUBCLASSE")), F.lit("__SEM_SUBCLASSE__"))
+)
+
+KEY_COLS = ["CNPJ_FUNDO_CLASSE", "ID_SUBCLASSE_CHAVE", "DT_COMPTC"]
+
 # Detecta duplicidades antes da deduplicação.
 dup_keys = (
     silver_base
-    .groupBy("CNPJ_FUNDO", "DT_COMPTC")
+    .groupBy(*KEY_COLS)
     .count()
     .withColumn("has_duplicate_key", F.col("count") > 1)
     .drop("count")
@@ -124,11 +164,11 @@ dup_keys = (
 
 silver_with_flags = (
     silver_base
-    .join(dup_keys, ["CNPJ_FUNDO", "DT_COMPTC"], "left")
+    .join(dup_keys, KEY_COLS, "left")
     .withColumn("has_duplicate_key", F.coalesce(F.col("has_duplicate_key"), F.lit(False)))
     .withColumn(
         "is_valid_base",
-        F.col("CNPJ_FUNDO").isNotNull()
+        F.col("CNPJ_FUNDO_CLASSE").isNotNull()
         & F.col("DT_COMPTC").isNotNull()
         & F.col("VL_PATRIM_LIQ").isNotNull()
         & (F.col("VL_PATRIM_LIQ") > 0)
@@ -141,7 +181,7 @@ silver_df = (
     .withColumn(
         "rn",
         F.row_number().over(
-            Window.partitionBy("CNPJ_FUNDO", "DT_COMPTC").orderBy(F.col("_ingestion_ts").desc())
+            Window.partitionBy(*KEY_COLS).orderBy(F.col("_ingestion_ts").desc())
         )
     )
     .filter(F.col("rn") == 1)
@@ -156,7 +196,7 @@ display(spark.table(SILVER_TABLE).limit(10))
 # DBTITLE 6,6. Gold — indicadores diários
 silver_valid = spark.table(SILVER_TABLE)
 
-w = Window.partitionBy("CNPJ_FUNDO").orderBy("DT_COMPTC")
+w = Window.partitionBy("CNPJ_FUNDO_CLASSE", "ID_SUBCLASSE_CHAVE").orderBy("DT_COMPTC")
 
 # O P95 é calculado sobre a amostra válida de todos os fundos/dias.
 # Primeiro calculamos o PL do dia anterior.
@@ -207,7 +247,7 @@ gold_daily = (
         ).otherwise(F.lit(0))
     )
     .select(
-        "CNPJ_FUNDO", "TP_FUNDO", "DT_COMPTC",
+        "CNPJ_FUNDO_CLASSE", "TP_FUNDO_CLASSE", "ID_SUBCLASSE", "ID_SUBCLASSE_CHAVE", "DT_COMPTC",
         "VL_PATRIM_LIQ", "CAPTC_DIA", "RESG_DIA", "NR_COTST",
         "fluxo_liquido", "taxa_resgate_pl", "taxa_fluxo_liquido_pl",
         "vl_patrim_liq_d1", "taxa_resgate_sobre_pl_anterior",
@@ -226,7 +266,7 @@ display(spark.table(GOLD_DAILY_TABLE).limit(10))
 gold_summary = (
     spark.table(GOLD_DAILY_TABLE)
     .filter(F.col("is_valid_base") == True)
-    .groupBy("CNPJ_FUNDO")
+    .groupBy("CNPJ_FUNDO_CLASSE", "ID_SUBCLASSE")
     .agg(
         F.count("*").alias("dias_validos"),
         F.min("DT_COMPTC").alias("data_inicial"),

@@ -12,7 +12,8 @@ GOLD_SUMMARY = "workspace.cvm_liquidez.gold_resumo_liquidez_fundo"
 # DBTITLE 1,P1 — maiores taxas acumuladas de resgate relativas ao PL médio
 p1 = spark.sql(f"""
 SELECT
-  CNPJ_FUNDO,
+  CNPJ_FUNDO_CLASSE,
+  ID_SUBCLASSE,
   resgates_periodo,
   pl_medio,
   taxa_resgate_acumulada_rel_pl_medio,
@@ -34,7 +35,8 @@ display(p1)
 # DBTITLE 2,P2 — frequência de dias de fluxo líquido negativo
 p2 = spark.sql(f"""
 SELECT
-  CNPJ_FUNDO,
+  CNPJ_FUNDO_CLASSE,
+  ID_SUBCLASSE,
   dias_validos,
   dias_fluxo_negativo,
   proporcao_dias_fluxo_negativo,
@@ -55,7 +57,8 @@ display(p2)
 # DBTITLE 3,P3 — eventos extremos acima do P95 da amostra
 p3 = spark.sql(f"""
 SELECT
-  CNPJ_FUNDO,
+  CNPJ_FUNDO_CLASSE,
+  ID_SUBCLASSE,
   SUM(evento_extremo_p95) AS qtd_eventos_extremos_p95,
   COUNT(CASE WHEN taxa_resgate_sobre_pl_anterior IS NOT NULL THEN 1 END) AS dias_com_denominador_d1,
   MAX(p95_amostra_taxa_resgate) AS p95_amostra,
@@ -64,7 +67,7 @@ SELECT
        ELSE NULL END AS proporcao_eventos_extremos
 FROM {GOLD_DAILY}
 WHERE is_valid_base = true
-GROUP BY CNPJ_FUNDO
+GROUP BY CNPJ_FUNDO_CLASSE, ID_SUBCLASSE
 ORDER BY qtd_eventos_extremos_p95 DESC, proporcao_eventos_extremos DESC
 LIMIT 20
 """)
@@ -77,7 +80,7 @@ display(p3)
 
 # COMMAND ----------
 # DBTITLE 4,Exemplo de série temporal de um fundo
-# Preencha temporariamente um CNPJ_FUNDO observado nas tabelas acima.
+# Preencha temporariamente um CNPJ_FUNDO_CLASSE observado nas tabelas acima.
 CNPJ_EXEMPLO = ""
 
 if CNPJ_EXEMPLO:
@@ -92,7 +95,7 @@ if CNPJ_EXEMPLO:
       taxa_resgate_sobre_pl_anterior,
       evento_extremo_p95
     FROM {GOLD_DAILY}
-    WHERE CNPJ_FUNDO = '{CNPJ_EXEMPLO}'
+    WHERE CNPJ_FUNDO_CLASSE = '{CNPJ_EXEMPLO}'
     ORDER BY DT_COMPTC
     """)
     display(serie)

@@ -15,7 +15,8 @@ silver = spark.table(SILVER)
 
 completude = silver.agg(
     F.count("*").alias("total_linhas"),
-    F.sum(F.when(F.col("CNPJ_FUNDO").isNull(), 1).otherwise(0)).alias("cnpj_nulo"),
+    F.sum(F.when(F.col("CNPJ_FUNDO_CLASSE").isNull(), 1).otherwise(0)).alias("cnpj_classe_nulo"),
+    F.sum(F.when(F.col("ID_SUBCLASSE").isNull(), 1).otherwise(0)).alias("id_subclasse_nulo"),
     F.sum(F.when(F.col("DT_COMPTC").isNull(), 1).otherwise(0)).alias("data_nula"),
     F.sum(F.when(F.col("VL_PATRIM_LIQ").isNull(), 1).otherwise(0)).alias("pl_nulo"),
     F.sum(F.when(F.col("CAPTC_DIA").isNull(), 1).otherwise(0)).alias("captacao_nula"),
@@ -29,7 +30,12 @@ bronze = spark.table(BRONZE)
 
 # Recalcula a duplicidade da chave natural no bruto.
 duplicidades = (
-    bronze.groupBy("CNPJ_FUNDO", "DT_COMPTC")
+    bronze
+    .withColumn(
+        "ID_SUBCLASSE_CHAVE",
+        F.coalesce(F.trim(F.col("ID_SUBCLASSE").cast("string")), F.lit("__SEM_SUBCLASSE__"))
+    )
+    .groupBy("CNPJ_FUNDO_CLASSE", "ID_SUBCLASSE_CHAVE", "DT_COMPTC")
     .count()
     .filter(F.col("count") > 1)
     .orderBy(F.col("count").desc())
@@ -51,7 +57,7 @@ display(negativos)
 # DBTITLE 4,Registros não válidos para os indicadores principais
 invalidos = (
     silver.filter(~F.col("is_valid_base"))
-    .select("CNPJ_FUNDO", "DT_COMPTC", "VL_PATRIM_LIQ", "is_valid_base")
+    .select("CNPJ_FUNDO_CLASSE", "ID_SUBCLASSE", "DT_COMPTC", "VL_PATRIM_LIQ", "is_valid_base")
 )
 print("Registros não válidos para os indicadores principais:", invalidos.count())
 display(invalidos.limit(20))
@@ -62,7 +68,7 @@ outliers = (
     spark.table(GOLD)
     .filter(F.col("taxa_resgate_sobre_pl_anterior").isNotNull())
     .select(
-        "CNPJ_FUNDO", "DT_COMPTC", "RESG_DIA",
+        "CNPJ_FUNDO_CLASSE", "DT_COMPTC", "RESG_DIA",
         "vl_patrim_liq_d1", "taxa_resgate_sobre_pl_anterior",
         "evento_extremo_p95"
     )
