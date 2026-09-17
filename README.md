@@ -23,7 +23,7 @@ Arquivos utilizados pelo pipeline:
 - `https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_202607.zip`
 - `https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_202608.zip`
 
-O projeto não versiona os arquivos de dados no GitHub. O código baixa os arquivos diretamente da fonte oficial quando o notebook é executado.
+O projeto não versiona os arquivos de dados no GitHub. Os ZIPs são baixados manualmente da fonte oficial e carregados para o Volume do Databricks antes da execução do notebook.
 
 ## Contexto de negócios e perguntas
 
@@ -49,12 +49,13 @@ Estas perguntas foram mantidas como objetivo original do MVP. Caso alguma não p
 
 ## Estrutura do dado bruto
 
-O Informe Diário da CVM apresenta, no arquivo utilizado, os campos principais:
+O Informe Diário da CVM apresenta, no layout atualmente utilizado, os campos principais. A CVM registra que, a partir de 2024, o conjunto passou a utilizar `TP_FUNDO_CLASSE`, `CNPJ_FUNDO_CLASSE` e `ID_SUBCLASSE`.
 
 | Campo | Uso no MVP |
 |---|---|
-| `TP_FUNDO` | Tipo do registro/fundo, mantido para rastreabilidade |
-| `CNPJ_FUNDO` | Identificador público do fundo |
+| `TP_FUNDO_CLASSE` | Tipo do registro/fundo, mantido para rastreabilidade |
+| `CNPJ_FUNDO_CLASSE` | Identificador público da classe/fundo |
+| `ID_SUBCLASSE` | Identificador da subclasse, quando aplicável |
 | `DT_COMPTC` | Data de competência do informe |
 | `VL_TOTAL` | Valor total da carteira |
 | `VL_QUOTA` | Valor da cota |
@@ -67,16 +68,17 @@ O projeto trabalha somente com informações públicas de fundos. Não são util
 
 ## Carga dos dados (Etapa 4.2)
 
-A coleta é automatizada no Notebook `notebooks/01_pipeline_cvm_liquidez.py`.
+A preparação dos dados é executada no Notebook `notebooks/01_pipeline_cvm_liquidez.py`. A aquisição dos ZIPs é manual no computador do aluno e a extração/leitura ocorre no Databricks.
 
 Fluxo:
 
-1. Criar um Volume no Unity Catalog para os arquivos brutos e processados.
-2. Baixar os dois ZIPs mensais diretamente do Portal Dados Abertos da CVM.
-3. Extrair o CSV de cada ZIP.
-4. Gravar os CSVs no caminho de dados brutos.
-5. Ler os arquivos no Spark e persistir a camada Bronze como tabela Delta.
+1. Criar um Volume no Unity Catalog para os arquivos brutos.
+2. Baixar os dois ZIPs mensais diretamente do Portal Dados Abertos da CVM no computador do aluno.
+3. Fazer upload dos ZIPs para `/Volumes/workspace/cvm_liquidez/raw`.
+4. O notebook localiza os ZIPs, extrai automaticamente os CSVs e os organiza por mês.
+5. Ler os CSVs no Spark e persistir a camada Bronze como tabela Delta.
 
+A carga manual foi adotada porque a Databricks Free Edition restringe o acesso de saída à internet. O trabalho permite explicitamente o fluxo simples de download do dataset e upload para a plataforma em nuvem.
 Não é necessário publicar os dados no GitHub; apenas o código é versionado.
 
 ## Modelagem e Catálogo de Dados (Etapa 4.3)
@@ -118,7 +120,7 @@ A execução deve evidenciar, no mínimo, os seguintes blocos:
 
 - `CREATE SCHEMA IF NOT EXISTS`
 - `CREATE VOLUME IF NOT EXISTS`
-- download via `requests`
+- upload dos ZIPs oficiais para o Volume e extração via `zipfile`
 - extração via `zipfile`
 - `spark.read.option(...).csv(...)`
 - `CREATE OR REPLACE TABLE ... USING DELTA`
@@ -133,11 +135,13 @@ A execução deve evidenciar, no mínimo, os seguintes blocos:
 
 1. Criar um workspace no Databricks Free Edition.
 2. Criar/conectar o repositório GitHub ao Databricks Repos.
-3. Importar o conteúdo deste repositório.
-4. Abrir `notebooks/01_pipeline_cvm_liquidez.py` como notebook.
-5. Executar as células em ordem, do início ao fim.
-6. Verificar as tabelas no catálogo.
-7. Executar os comandos de análise no final do notebook.
+3. Importar/conectar o conteúdo deste repositório.
+4. No Catalog Explorer, abrir `workspace > cvm_liquidez > Volumes > raw`.
+5. Fazer upload dos arquivos `inf_diario_fi_202607.zip` e `inf_diario_fi_202608.zip`.
+6. Abrir `notebooks/01_pipeline_cvm_liquidez.py` como notebook.
+7. Executar as células em ordem, do início ao fim.
+8. Verificar as tabelas no catálogo.
+9. Executar `02_qualidade_cvm_liquidez.py` e depois `03_analise_cvm_liquidez.py`.
 
 ## Qualidade de Dados (Etapa 4.5)
 
@@ -147,7 +151,7 @@ São verificados:
 
 - **Completude:** nulos em identificador, data e métricas principais.
 - **Consistência:** tipos de data e numéricos; valores negativos em métricas que, no contexto do dado, deveriam ser não negativos.
-- **Unicidade:** duplicidade por `CNPJ_FUNDO + DT_COMPTC`.
+- **Unicidade:** duplicidade por `CNPJ_FUNDO_CLASSE + ID_SUBCLASSE + DT_COMPTC`, usando uma chave técnica para subclasse ausente.
 - **Acurácia lógica:** casos de patrimônio líquido zero/nulo, necessários para evitar divisão por zero.
 - **Outliers:** distribuição das taxas de resgate e fluxo líquido, sem exclusão automática de extremos.
 
