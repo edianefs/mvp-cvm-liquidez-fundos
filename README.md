@@ -298,25 +298,17 @@ As tabelas utilizadas são:
 
 ## 16. Trabalhos futuros
 
-Como evolução do MVP, podem ser considerados:
-
-- ampliação da janela histórica;
-- integração com dados cadastrais dos fundos;
-- atualização periódica automatizada;
-- dashboard de acompanhamento de exceções;
-- análise de reincidência e persistência dos eventos;
-- definição de indicadores complementares de liquidez.
-
+Este projeto pode ser ampliado para além do contexto acadêmico e servir como ponto de partida para aplicações relacionadas às atividades que realizo na área de compliance, controles internos e gestão de riscos na Banrisul Corretora. A evolução mais natural seria ampliar o período analisado e automatizar a atualização dos dados, permitindo acompanhar os indicadores de forma recorrente e identificar mudanças de comportamento ao longo do tempo. Também seria possível integrar informações cadastrais dos fundos e criar uma visão de acompanhamento das exceções, facilitando a seleção de situações que mereçam uma análise mais detalhada. Em um contexto de trabalho, esses recursos poderiam apoiar rotinas de monitoramento, controles e análises de risco, sempre como instrumentos de apoio e sem substituir os critérios, metodologias e responsabilidades já existentes. A experiência adquirida com este MVP também pode ser aproveitada em outros projetos de análise de dados, especialmente na construção de indicadores e controles que transformem grandes volumes de informações em informações mais úteis para a tomada de decisão.
 
 ## 17. Autoavaliação
 
-O objetivo definido no início do MVP foi atingido no escopo proposto. Foi construído um pipeline de dados ponta a ponta no Databricks, partindo de dados públicos da CVM, passando pelas camadas Bronze, Silver e Gold e chegando a consultas analíticas que respondem às três perguntas de negócio.
+Este trabalho foi, para mim, uma oportunidade de colocar em prática algo que até então parecia muito distante da minha rotina: transformar dados em uma análise que pudesse responder a perguntas concretas. Durante o desenvolvimento, precisei sair da minha zona de conforto e aprender a lidar com etapas que eu ainda não dominava, desde a organização dos dados até a construção do pipeline e a interpretação dos resultados.
 
-As três perguntas foram respondidas com indicadores reproduzíveis: P1 analisou resgates acumulados em relação ao PL médio, P2 analisou a frequência de dias com fluxo líquido negativo e P3 identificou ocorrências acima do P95 da amostra. As respostas foram acompanhadas de interpretação e evidências visuais no repositório.
+O projeto também me mostrou que fazer uma análise de dados não significa apenas executar códigos e obter números. Foi necessário entender a origem dos dados, perceber problemas de qualidade, investigar resultados que pareciam fora do esperado e tomar decisões sobre o que deveria ser mantido, tratado ou apenas sinalizado. Um exemplo foi o erro relacionado à coluna `TP_FUNDO`, que me levou a verificar o layout da fonte e corrigir a referência para `TP_FUNDO_CLASSE`. Outro ponto importante foi aprender a não eliminar automaticamente os valores extremos, mas procurar entender o que eles representavam antes de decidir como tratá-los.
 
-As principais dificuldades estiveram no entendimento do layout da fonte, no tratamento de nulos e duplicidades e na interpretação adequada de eventos extremos. Durante a execução, o erro relacionado à coluna `TP_FUNDO` foi identificado e corrigido para `TP_FUNDO_CLASSE`, com as evidências preservadas. A alta incidência de `ID_SUBCLASSE` nulo também exigiu uma decisão técnica para manter a rastreabilidade sem preenchimento artificial.
+Considero que o principal resultado deste MVP foi ter conseguido acompanhar todo o caminho dos dados, desde a fonte pública até os indicadores utilizados na análise. As três perguntas propostas foram respondidas e, principalmente, consegui compreender melhor como os resultados foram construídos e quais cuidados são necessários para interpretá-los.
 
-O MVP demonstrou o ciclo completo de coleta, armazenamento, transformação, validação e análise na nuvem. Como evolução, podem ser ampliados o histórico, a automação de atualização, a integração com dados cadastrais e o acompanhamento contínuo das exceções.
+Além do aprendizado técnico, vejo uma relação direta entre este projeto e minha experiência profissional. Trabalho com compliance, controles internos e risco, áreas em que a capacidade de organizar informações, identificar exceções e transformar dados em evidências pode contribuir para análises mais estruturadas. Por isso, considero que o conhecimento desenvolvido neste MVP pode ser útil não apenas para esta disciplina, mas também para minha evolução profissional e para futuras iniciativas de uso de dados nas atividades com as quais trabalho.
 
 ## 18. Referências
 
