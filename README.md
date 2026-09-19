@@ -88,95 +88,87 @@ Para organizar o projeto, os dados foram separados em etapas, seguindo a estrutu
 
 ### Catálogo de dados
 
-O catálogo completo também está registrado em `sql/catalogo.sql`. Abaixo está a documentação dos campos utilizados, com tipo lógico, finalidade, domínio/regra e origem principal. Para campos numéricos, o domínio é tratado conforme a natureza do campo e as regras de validade do pipeline; não foi definido um limite máximo artificial quando a própria fonte não estabelece esse limite. Para campos categóricos, são consideradas as categorias disponibilizadas pela CVM.
+O catálogo explicita o domínio de valores de cada campo. Quando a fonte não define um limite máximo, é registrada a regra de negócio aplicável em vez de inventar um limite numérico.
 
 #### Bronze — dados recebidos
 
-| Campo | Tipo lógico | Descrição / origem |
-|---|---|---|
-| `TP_FUNDO_CLASSE` | string | Tipo do fundo/classe; origem CVM |
-| `CNPJ_FUNDO_CLASSE` | string | Identificador público da classe/fundo; origem CVM |
-| `ID_SUBCLASSE` | string / nulo | Identificador da subclasse, quando aplicável; origem CVM |
-| `DT_COMPTC` | date | Data de competência; origem CVM |
-| `VL_TOTAL` | double | Valor total da carteira; origem CVM |
-| `VL_QUOTA` | double | Valor da cota; origem CVM |
-| `VL_PATRIM_LIQ` | double | Patrimônio líquido; origem CVM |
-| `CAPTC_DIA` | double | Captação do dia; origem CVM |
-| `RESG_DIA` | double | Resgate do dia; origem CVM |
-| `NR_COTST` | long | Número de cotistas; origem CVM |
-| `_source_file` | string | Arquivo de origem identificado na ingestão |
-| `_ingestion_ts` | timestamp | Momento da ingestão |
-
-Domínio e regras principais: identificadores e textos seguem o formato da fonte CVM; `DT_COMPTC` é uma data de competência; campos monetários são numéricos e podem conter valores que precisam ser analisados na etapa de qualidade; `NR_COTST` é numérico e não deve ser negativo; os campos `_source_file` e `_ingestion_ts` são metadados de ingestão.
+| Campo | Tipo lógico | Domínio / regra | Descrição / origem |
+|---|---|---|---|
+| `TP_FUNDO_CLASSE` | string | Categorias de tipo de fundo/classe conforme a CVM | Tipo do fundo/classe; origem CVM |
+| `CNPJ_FUNDO_CLASSE` | string | Identificador público; preenchimento esperado na base válida | Identificador público da classe/fundo; origem CVM |
+| `ID_SUBCLASSE` | string / nulo | Identificador da subclasse ou nulo quando não informado | Identificador da subclasse; origem CVM |
+| `DT_COMPTC` | date | Data; no MVP, 01/07/2026 a 31/08/2026 | Data de competência; origem CVM |
+| `VL_TOTAL` | double | Valor monetário numérico; sem limite superior definido pela fonte | Valor total da carteira; origem CVM |
+| `VL_QUOTA` | double | Valor monetário numérico; sem limite superior definido pela fonte | Valor da cota; origem CVM |
+| `VL_PATRIM_LIQ` | double | Numérico; pode conter negativos na origem; para os principais indicadores, deve ser > 0 | Patrimônio líquido; origem CVM |
+| `CAPTC_DIA` | double | Valor monetário numérico; não foram encontrados negativos na amostra | Captação do dia; origem CVM |
+| `RESG_DIA` | double | Valor monetário numérico; não foram encontrados negativos na amostra | Resgate do dia; origem CVM |
+| `NR_COTST` | long | Contagem inteira; esperado >= 0 | Número de cotistas; origem CVM |
+| `_source_file` | string | Texto com o arquivo de origem | Arquivo identificado na ingestão |
+| `_ingestion_ts` | timestamp | Timestamp gerado na ingestão | Momento da ingestão |
 
 #### Silver — dados preparados
 
 A Silver mantém os campos da Bronze utilizados no projeto e acrescenta campos para controle de qualidade.
 
-| Campo | Tipo lógico | Descrição / regra |
-|---|---|---|
-| `TP_FUNDO_CLASSE` | string | Tipo do fundo/classe |
-| `CNPJ_FUNDO_CLASSE` | string | Identificador público da classe/fundo |
-| `ID_SUBCLASSE` | string / nulo | Identificador da subclasse |
-| `DT_COMPTC` | date | Data de competência |
-| `VL_TOTAL` | double | Valor total da carteira |
-| `VL_QUOTA` | double | Valor da cota |
-| `VL_PATRIM_LIQ` | double | PL; para a base válida, deve ser maior que zero |
-| `CAPTC_DIA` | double | Captação diária |
-| `RESG_DIA` | double | Resgate diário |
-| `NR_COTST` | long | Número de cotistas |
-| `_source_file` | string | Arquivo de origem |
-| `_ingestion_ts` | timestamp | Momento da ingestão |
-| `ID_SUBCLASSE_CHAVE` | string | Usa a subclasse ou `__SEM_SUBCLASSE__` quando nula |
-| `has_duplicate_key` | boolean | Indica duplicidade da chave CNPJ + subclasse + data |
-| `is_valid_base` | boolean | Indica CNPJ, data e PL preenchidos e PL maior que zero |
-
-Domínio e regras principais: `CNPJ_FUNDO_CLASSE` e `DT_COMPTC` devem estar preenchidos para a base válida; `VL_PATRIM_LIQ` deve ser maior que zero para os principais cálculos; `ID_SUBCLASSE_CHAVE` recebe o identificador original ou `__SEM_SUBCLASSE__`; as flags são booleanas.
+| Campo | Tipo lógico | Domínio / regra | Descrição / regra |
+|---|---|---|---|
+| `TP_FUNDO_CLASSE` | string | Categorias de tipo de fundo/classe conforme a CVM | Tipo do fundo/classe |
+| `CNPJ_FUNDO_CLASSE` | string | Identificador público; obrigatório para `is_valid_base` | Identificador público |
+| `ID_SUBCLASSE` | string / nulo | String ou nulo | Identificador da subclasse |
+| `DT_COMPTC` | date | Data; obrigatória para `is_valid_base` | Data de competência |
+| `VL_TOTAL` | double | Valor monetário numérico; sem limite superior definido pela fonte | Valor total da carteira |
+| `VL_QUOTA` | double | Valor monetário numérico; sem limite superior definido pela fonte | Valor da cota |
+| `VL_PATRIM_LIQ` | double | `is_valid_base` exige valor > 0; negativos são preservados | Patrimônio líquido |
+| `CAPTC_DIA` | double | Numérico; negativos não observados na amostra | Captação diária |
+| `RESG_DIA` | double | Numérico; negativos não observados na amostra | Resgate diário |
+| `NR_COTST` | long | Inteiro >= 0 esperado | Número de cotistas |
+| `_source_file` | string | Texto com arquivo de origem | Arquivo de origem |
+| `_ingestion_ts` | timestamp | Timestamp | Momento da ingestão |
+| `ID_SUBCLASSE_CHAVE` | string | ID da subclasse ou `__SEM_SUBCLASSE__` | Chave técnica |
+| `has_duplicate_key` | boolean | true/false | Indica duplicidade |
+| `is_valid_base` | boolean | true/false; CNPJ e data preenchidos e PL > 0 | Indica validade para os cálculos |
 
 #### Gold diária — indicadores
 
-| Campo | Tipo lógico | Descrição / origem |
-|---|---|---|
-| `CNPJ_FUNDO_CLASSE` | string | Identificador; Silver |
-| `TP_FUNDO_CLASSE` | string | Tipo do fundo/classe; Silver |
-| `ID_SUBCLASSE` | string / nulo | Subclasse; Silver |
-| `ID_SUBCLASSE_CHAVE` | string | Chave técnica; Silver |
-| `DT_COMPTC` | date | Data de competência; Silver |
-| `VL_PATRIM_LIQ` | double | PL do dia; Silver |
-| `CAPTC_DIA` | double | Captação do dia; Silver |
-| `RESG_DIA` | double | Resgate do dia; Silver |
-| `NR_COTST` | long | Número de cotistas; Silver |
-| `fluxo_liquido` | double | Captações menos resgates |
-| `taxa_resgate_pl` | double | Resgates do dia / PL do próprio dia |
-| `taxa_fluxo_liquido_pl` | double | Fluxo líquido / PL do próprio dia |
-| `vl_patrim_liq_d1` | double | PL do registro anterior |
-| `taxa_resgate_sobre_pl_anterior` | double | Resgates / PL do dia anterior |
-| `variacao_pl_d1` | double | Variação relativa do PL contra o dia anterior |
-| `p95_amostra_taxa_resgate` | double | Percentil 95 da taxa de resgate sobre PL anterior |
-| `evento_extremo_p95` | integer | 1 quando a taxa supera o P95; 0 nos demais casos |
-| `is_valid_base` | boolean | Flag de validade herdada da Silver |
-
-Domínio e regras principais: `fluxo_liquido` e as taxas são calculados numericamente a partir dos campos de origem; taxas dependentes de PL válido não são calculadas quando o denominador não é válido; `evento_extremo_p95` assume 1 para valores acima do P95 e 0 nos demais casos.
+| Campo | Tipo lógico | Domínio / regra | Descrição / origem |
+|---|---|---|---|
+| `CNPJ_FUNDO_CLASSE` | string | Identificador público | Silver |
+| `TP_FUNDO_CLASSE` | string | Categorias de tipo de fundo/classe conforme a CVM | Silver |
+| `ID_SUBCLASSE` | string / nulo | String ou nulo | Silver |
+| `ID_SUBCLASSE_CHAVE` | string | Chave técnica da série | Silver |
+| `DT_COMPTC` | date | Data do período analisado | Silver |
+| `VL_PATRIM_LIQ` | double | Numérico; cálculos principais usam base válida | PL do dia; Silver |
+| `CAPTC_DIA` | double | Numérico | Captação do dia; Silver |
+| `RESG_DIA` | double | Numérico | Resgate do dia; Silver |
+| `NR_COTST` | long | Inteiro >= 0 esperado | Número de cotistas; Silver |
+| `fluxo_liquido` | double | Pode ser negativo, zero ou positivo | Captações menos resgates |
+| `taxa_resgate_pl` | double | >= 0 quando calculada com PL positivo | Resgates / PL do próprio dia |
+| `taxa_fluxo_liquido_pl` | double | Pode ser negativa, zero ou positiva | Fluxo líquido / PL |
+| `vl_patrim_liq_d1` | double | PL anterior quando disponível | PL do registro anterior |
+| `taxa_resgate_sobre_pl_anterior` | double | >= 0 quando calculada com PL anterior positivo | Resgates / PL anterior |
+| `variacao_pl_d1` | double | Com PLs positivos, mínimo teórico -1 e sem limite superior fixo | Variação relativa do PL |
+| `p95_amostra_taxa_resgate` | double | Valor >= 0 da distribuição válida | Percentil 95 |
+| `evento_extremo_p95` | integer | 0 ou 1 | 1 quando supera o P95 |
+| `is_valid_base` | boolean | true/false | Flag herdada da Silver |
 
 #### Gold resumo — consolidação
 
-| Campo | Tipo lógico | Descrição |
-|---|---|---|
-| `CNPJ_FUNDO_CLASSE` | string | Identificador público da classe/fundo |
-| `ID_SUBCLASSE` | string / nulo | Identificador da subclasse |
-| `dias_validos` | long | Quantidade de dias válidos |
-| `data_inicial` | date | Primeira data válida |
-| `data_final` | date | Última data válida |
-| `pl_medio` | double | PL médio no período |
-| `captacoes_periodo` | double | Soma das captações |
-| `resgates_periodo` | double | Soma dos resgates |
-| `fluxo_liquido_periodo` | double | Soma do fluxo líquido |
-| `dias_fluxo_negativo` | long | Dias com fluxo líquido negativo |
-| `qtd_eventos_extremos_p95` | long | Quantidade de eventos acima do P95 |
-| `taxa_resgate_acumulada_rel_pl_medio` | double | Resgates acumulados / PL médio |
-| `proporcao_dias_fluxo_negativo` | double | Proporção de dias com fluxo líquido negativo |
-
-Domínio e regras principais: `dias_validos`, `dias_fluxo_negativo` e `qtd_eventos_extremos_p95` são contagens não negativas; `proporcao_dias_fluxo_negativo` varia de 0 a 1; `pl_medio` é calculado sobre a base válida; `taxa_resgate_acumulada_rel_pl_medio` é uma razão acumulada e pode ser maior que 1.
+| Campo | Tipo lógico | Domínio / regra | Descrição |
+|---|---|---|---|
+| `CNPJ_FUNDO_CLASSE` | string | Identificador público | Identificador da classe/fundo |
+| `ID_SUBCLASSE` | string / nulo | String ou nulo | Identificador da subclasse |
+| `dias_validos` | long | Contagem inteira >= 0 | Quantidade de dias válidos |
+| `data_inicial` | date | Data válida do período | Primeira data válida |
+| `data_final` | date | Data válida; >= data inicial quando preenchida | Última data válida |
+| `pl_medio` | double | Média do PL da base válida; > 0 quando há registros válidos | PL médio |
+| `captacoes_periodo` | double | Soma numérica das captações | Captações |
+| `resgates_periodo` | double | Soma numérica dos resgates | Resgates |
+| `fluxo_liquido_periodo` | double | Pode ser negativo, zero ou positivo | Soma do fluxo líquido |
+| `dias_fluxo_negativo` | long | Inteiro >= 0 e <= `dias_validos` | Dias com fluxo negativo |
+| `qtd_eventos_extremos_p95` | long | Contagem inteira >= 0 | Eventos acima do P95 |
+| `taxa_resgate_acumulada_rel_pl_medio` | double | Razão >= 0; pode ser > 1 por ser acumulada | Resgates acumulados / PL médio |
+| `proporcao_dias_fluxo_negativo` | double | Entre 0 e 1, inclusive | Proporção de dias com fluxo negativo |
 
 O catálogo também está registrado no arquivo `sql/catalogo.sql` e foi documentado por meio do screenshot disponível em `docs/imagens/evidencias do catalogo - modelagem e catalogo de dados.PNG`.
 
@@ -457,6 +449,10 @@ O P95 calculado para a taxa de resgate sobre o PL do dia anterior foi de aproxim
 Portanto, a resposta à P3 é que os fundos destacados apresentaram uma frequência elevada de eventos classificados como extremos em relação à distribuição observada na própria amostra. Entre os CNPJs que aparecem no resultado estão `05.943.661/0001-74` e `05.114.716/0001-33`.
 
 Esse resultado é apenas uma comparação com os dados da própria amostra. O P95 não é um limite regulatório da CVM e, sozinho, não permite concluir que um fundo esteja em situação de risco de liquidez.
+
+### Discussão geral
+
+As três análises mostram diferentes aspectos do comportamento dos fundos no período estudado: volume acumulado de resgates em relação ao PL médio, frequência de saídas líquidas e ocorrência de resgates extremos em relação à própria amostra. Em conjunto, os indicadores ajudam a identificar fundos e períodos que merecem uma análise mais detalhada. Os resultados, porém, são descritivos e dependem do período e dos dados analisados, não sendo suficientes, isoladamente, para caracterizar risco de liquidez ou situação regulatória.
 
 ## 10. Exemplo de série temporal
 
