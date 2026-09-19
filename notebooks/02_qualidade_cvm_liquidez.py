@@ -1,8 +1,13 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "5"
+# ///
 # MAGIC %md
 # MAGIC # Qualidade de Dados — MVP CVM Liquidez
 
 # COMMAND ----------
+
 from pyspark.sql import functions as F
 
 SILVER = "workspace.cvm_liquidez.silver_informe_diario"
@@ -10,6 +15,7 @@ BRONZE = "workspace.cvm_liquidez.bronze_informe_diario"
 GOLD = "workspace.cvm_liquidez.gold_indicadores_liquidez_diarios"
 
 # COMMAND ----------
+
 # DBTITLE 1,Completude da Silver
 silver = spark.table(SILVER)
 
@@ -25,6 +31,7 @@ completude = silver.agg(
 display(completude)
 
 # COMMAND ----------
+
 # DBTITLE 2,Duplicidades sinalizadas antes da deduplicação
 bronze = spark.table(BRONZE)
 
@@ -44,6 +51,7 @@ print("Quantidade de chaves duplicadas no Bronze:", duplicidades.count())
 display(duplicidades.limit(20))
 
 # COMMAND ----------
+
 # DBTITLE 3,Consistência — valores negativos nas métricas que deveriam ser não negativas
 negativos = silver.agg(
     F.sum(F.when(F.col("VL_PATRIM_LIQ") < 0, 1).otherwise(0)).alias("pl_negativo"),
@@ -54,6 +62,7 @@ negativos = silver.agg(
 display(negativos)
 
 # COMMAND ----------
+
 # DBTITLE 4,Registros não válidos para os indicadores principais
 invalidos = (
     silver.filter(~F.col("is_valid_base"))
@@ -63,6 +72,7 @@ print("Registros não válidos para os indicadores principais:", invalidos.count
 display(invalidos.limit(20))
 
 # COMMAND ----------
+
 # DBTITLE 5,Outliers — maiores taxas de resgate sobre PL anterior
 outliers = (
     spark.table(GOLD)
@@ -77,6 +87,7 @@ outliers = (
 display(outliers.limit(20))
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Interpretação
 # MAGIC
