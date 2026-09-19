@@ -173,25 +173,39 @@ Valores extremos foram preservados e sinalizados, em vez de serem excluídos aut
 
 ## 9. Resultados analíticos
 
+As tabelas apresentadas no notebook de análise não são apenas descritivas: cada uma responde diretamente a uma das perguntas formuladas no início do MVP.
+
 ### P1 — Resgates acumulados sobre PL médio
 
-O indicador identifica fundos com maior volume de resgates acumulados em relação ao PL médio do período.
+**Resposta à P1:** os fundos que aparecem no topo da tabela são aqueles que apresentaram a maior razão entre os resgates acumulados e o PL médio no período analisado.
 
-O maior valor observado na amostra foi de aproximadamente 46,31 vezes o PL médio do período, referente ao CNPJ `52.984.696/0001-31`. Esse resultado deve ser interpretado como uma razão acumulada entre resgates e PL médio, e não como a afirmação de que o fundo resgatou 46 vezes seu patrimônio em um único evento.
+O maior valor observado foi de aproximadamente **46,31 vezes o PL médio**, referente ao CNPJ `52.984.696/0001-31`. Na sequência aparecem fundos com índices de aproximadamente 44,23, 44,09, 43,46 e 42,43 vezes o PL médio.
+
+Portanto, a resposta à pergunta P1 é que os maiores índices se concentram em fundos nos quais o volume acumulado de resgates foi muito elevado em relação ao PL médio observado no período. O resultado deve ser interpretado como uma **razão acumulada**, e não como a afirmação de que o fundo resgatou 46 vezes seu patrimônio em um único evento.
+
+No caso do CNPJ `52.984.696/0001-31`, por exemplo, foram registrados aproximadamente R$ 26,86 milhões em resgates acumulados, enquanto o PL médio observado foi de aproximadamente R$ 579,98 mil. Isso produz a razão de 46,31.
 
 ### P2 — Frequência de fluxo líquido negativo
 
-Os resultados identificam fundos com recorrência de dias em que:
+**Resposta à P2:** os fundos que aparecem no topo da tabela apresentaram fluxo líquido negativo em todos os dias válidos considerados no período.
+
+A primeira posição da tabela, assim como os demais fundos destacados no resultado, apresenta **44 dias válidos e 44 dias com fluxo líquido negativo**, correspondendo a **100% dos dias considerados**. Isso significa que, nesses fundos, em todos os dias válidos analisados, os resgates foram superiores às captações:
 
 `CAPTC_DIA - RESG_DIA < 0`
 
-Na primeira posição da tabela, há fundos com 44 dias válidos e 44 dias de fluxo líquido negativo, correspondendo a 100% dos dias considerados para aquele fundo. A métrica descreve recorrência de saída líquida no período e, isoladamente, não caracteriza situação regulatória.
+Como consequência, o fluxo líquido acumulado no período também é negativo. Por exemplo, entre os fundos destacados na tabela, o CNPJ `41.575.707/0001-03` apresentou fluxo líquido acumulado de aproximadamente **-R$ 1,03 bilhão**.
+
+Assim, a resposta à P2 é que existem fundos com **recorrência diária de saída líquida durante todo o período válido analisado**. Essa métrica descreve o comportamento observado nos dados e, isoladamente, não caracteriza situação regulatória ou conclusão definitiva sobre risco de liquidez.
 
 ### P3 — Eventos acima do P95
 
-O P95 calculado na amostra foi aproximadamente 0,43%.
+**Resposta à P3:** os fundos que aparecem no topo da tabela foram os que concentraram a maior quantidade de eventos de resgate acima do P95 da amostra.
 
-Os resultados de P3 identificam fundos que apresentaram maior quantidade de observações acima desse ponto estatístico. Trata-se de uma classificação relativa à distribuição observada nos dados do MVP, sem interpretação como limite regulatório.
+O P95 calculado para a taxa de resgate sobre o PL do dia anterior foi de aproximadamente **0,43%**. Os fundos destacados na tabela apresentaram **43 eventos extremos em 43 dias com denominador válido**, resultando em **100% dos dias válidos com taxa acima do P95** para esses casos.
+
+Portanto, a resposta à P3 é que os fundos destacados apresentaram uma frequência elevada de eventos classificados como extremos em relação à distribuição observada na própria amostra. Entre os CNPJs que aparecem no resultado estão `05.943.661/0001-74` e `05.114.716/0001-33`.
+
+Esse resultado é uma **classificação estatística relativa à amostra do MVP**. O P95 não representa um limite regulatório da CVM nem, isoladamente, permite concluir que um fundo esteja em situação de risco de liquidez.
 
 ## 10. Exemplo de série temporal
 
