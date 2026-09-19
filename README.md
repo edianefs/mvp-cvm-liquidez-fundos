@@ -24,10 +24,10 @@ A amostra utilizada no MVP compreende os meses completos de **julho/2026 e agost
 Os arquivos de origem não são versionados no GitHub. O código do pipeline e as evidências da execução são versionados.
 ### Licença e contexto da fonte
 
-O conjunto **Fundos de Investimento: Documentos: Informe Diário** está disponibilizado no Portal Dados Abertos da CVM sob a **Licença Aberta para Bases de Dados (ODbL) do Open Data Commons**. A página da CVM também disponibiliza o dicionário de dados do conjunto e informa que os dados são disponibilizados em CSV compactado (ZIP). citeturn0search0turn0search1
+O conjunto **Fundos de Investimento: Documentos: Informe Diário** está disponibilizado no Portal Dados Abertos da CVM sob a **Licença Aberta para Bases de Dados (ODbL) do Open Data Commons**. A página da CVM também disponibiliza o dicionário de dados do conjunto e informa que os dados são disponibilizados em CSV compactado (ZIP).
 
 
-## 3. Contexto e perguntas de negócio
+## 3. Contexto de Negócios e Perguntas
 
 O MVP busca transformar os registros diários da CVM em indicadores reproduzíveis para apoiar a identificação de eventos que mereçam investigação no contexto de monitoramento de liquidez.
 
@@ -50,7 +50,7 @@ A carga foi realizada no **Databricks Free Edition**, utilizando um Volume do Un
 
 O fluxo foi: (1) disponibilização dos arquivos mensais no Volume `workspace.cvm_liquidez.raw`; (2) verificação dos ZIPs pelo notebook principal; (3) extração dos CSVs por mês no próprio Volume; (4) leitura dos CSVs pelo Spark com cabeçalho e separador `;`; e (5) gravação da camada Bronze em formato Delta.
 
-O script responsável por essa etapa é `notebooks/01_pipeline_cvm_liquidez.py`. A partir da Bronze, o mesmo notebook executa as transformações para Silver e Gold. A CVM informa que o Informe Diário é disponibilizado em CSV compactado (ZIP). citeturn0search0turn0search11
+O script responsável por essa etapa é `notebooks/01_pipeline_cvm_liquidez.py`. A partir da Bronze, o mesmo notebook executa as transformações para Silver e Gold. A CVM informa que o Informe Diário é disponibilizado em CSV compactado (ZIP).
 
 ## 5. Modelagem e catálogo de dados
 
@@ -65,11 +65,11 @@ A modelagem segue a lógica de arquitetura medalhão:
 
 O catálogo de dados está implementado em `sql/catalogo.sql` e complementado pelo screenshot do Unity Catalog em `docs/imagens/evidencias%20do%20catalogo%20-%20modelagem%20e%20catalogo%20de%20dados.PNG`.
 
-O dicionário da fonte contempla informações como tipo de fundo/classe, identificador, subclasse, data de competência, valor total da carteira, patrimônio líquido, valor da cota, captações, resgates e número de cotistas. citeturn0search0
+O dicionário da fonte contempla informações como tipo de fundo/classe, identificador, subclasse, data de competência, valor total da carteira, patrimônio líquido, valor da cota, captações, resgates e número de cotistas.
 
 A linhagem está documentada no catálogo: Bronze recebe os CSVs da CVM; Silver deriva da Bronze por tipagem, chave técnica, deduplicação e validação; Gold diária deriva da Silver por cálculos de indicadores; Gold resumo agrega a Gold diária por fundo/classe. Os comentários do `sql/catalogo.sql` registram descrição, tipo lógico, domínio quando aplicável e origem dos campos.
 
-## 6. Arquitetura do pipeline
+## 6. Pipeline de Dados e Arquitetura
 
 O fluxo implementado é:
 
