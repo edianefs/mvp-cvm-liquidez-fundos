@@ -671,8 +671,6 @@ display(
 
 # DBTITLE 8,8. Validação final rápida
 
-# DBTITLE 8,8. Validação final rápida
-
 for table_name in [
 
     BRONZE_TABLE,
