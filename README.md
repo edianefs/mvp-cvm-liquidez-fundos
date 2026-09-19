@@ -185,30 +185,98 @@ Os indicadores foram usados em conjunto para responder às perguntas do MVP e ob
 
 ## 8. Qualidade dos dados
 
-Antes de analisar os resultados, fiz algumas verificações para entender se os dados estavam consistentes:
+A etapa de qualidade foi usada para verificar se os dados carregados estavam completos, se havia registros duplicados ou inválidos e se existiam valores que poderiam distorcer os indicadores.
 
-- completude;
-- consistência;
-- duplicidades;
-- registros não válidos para os indicadores principais;
-- valores extremos.
+As verificações foram realizadas antes e depois das transformações do pipeline. Quando foi identificado um problema que afetava os indicadores principais, foi feito um tratamento na camada Silver. Quando o valor poderia representar uma situação real da fonte, ele foi mantido e apenas sinalizado para análise.
 
-### Resultados observados
+### Completude dos dados
 
-- Bronze: 1.119.386 linhas
-- Silver: 1.119.383 linhas
-- Gold diária: 1.119.383 linhas
-- Gold resumo: 26.077 linhas
-- Período analisado: 01/07/2026 a 31/08/2026
-- Registros não válidos para os indicadores principais: 4.720
-- Chaves duplicadas identificadas no Bronze: 3
-- Eventos acima do P95: 54.476
+A primeira verificação foi feita para identificar campos importantes que estavam vazios.
 
-A diferença de três linhas entre Bronze e Silver corresponde às três duplicidades identificadas e retiradas.
+Na tabela Silver, foram analisados o CNPJ da classe, o identificador da subclasse, a data, o patrimônio líquido, as captações e os resgates.
 
-`ID_SUBCLASSE` aparece vazio em grande parte dos registros da fonte. Em vez de inventar valores para preencher esse campo, usei uma chave técnica para conseguir organizar essas linhas e manter o CNPJ como referência principal.
+Os resultados foram:
 
-Os valores muito diferentes dos demais foram mantidos e sinalizados, para que pudessem ser analisados em vez de simplesmente excluídos.
+- 1.119.383 registros analisados;
+- CNPJ da classe nulo: 0;
+- identificador da subclasse nulo: 1.084.238;
+- data nula: 0;
+- patrimônio líquido nulo: 0;
+- captação nula: 0;
+- resgate nulo: 0.
+
+A grande quantidade de identificadores de subclasse nulos não foi tratada como erro. Para permitir a identificação dos registros, foi criada a chave `ID_SUBCLASSE_CHAVE`, que utiliza o valor `__SEM_SUBCLASSE__` quando o campo original está vazio.
+
+Dessa forma, os registros continuam disponíveis no pipeline sem alterar o dado original.
+
+### Chaves duplicadas
+
+Foi verificado se existiam mais de um registro para a mesma combinação de CNPJ, subclasse e data.
+
+Na Bronze foram encontrados 3 registros duplicados. Eles correspondiam a 3 linhas excedentes em relação à Silver:
+
+- Bronze: 1.119.386 registros;
+- Silver: 1.119.383 registros.
+
+Na camada Silver, foi mantido apenas um registro para cada combinação de CNPJ, subclasse e data, usando o registro mais recente de acordo com o horário de ingestão.
+
+Esse tratamento evita que o mesmo dia seja contado duas vezes nos indicadores.
+
+### Valores negativos
+
+Também foi verificado se existiam valores negativos em campos que, no contexto deste MVP, não deveriam apresentar esse comportamento.
+
+Foram encontrados:
+
+- patrimônio líquido negativo: 1.383 registros;
+- captação negativa: 0;
+- resgate negativo: 0;
+- número de cotistas negativo: 0.
+
+Os valores negativos de patrimônio líquido foram mantidos porque o objetivo desta etapa foi identificar e registrar o comportamento existente na fonte, e não criar uma regra que pudesse eliminar informações sem uma justificativa adicional.
+
+Já captações, resgates e número de cotistas não apresentaram valores negativos.
+
+### Registros inválidos para os indicadores principais
+
+Foram identificados 4.720 registros que não atendiam aos critérios básicos para o cálculo dos principais indicadores.
+
+O principal caso observado foi o patrimônio líquido igual a zero. Como as taxas de resgate e fluxo são calculadas em relação ao patrimônio líquido, esses registros não podem ser usados de forma segura nessas divisões.
+
+Por isso, a Silver possui o campo `is_valid_base`, que identifica os registros que possuem CNPJ, data e patrimônio líquido válido e maior que zero.
+
+Os registros inválidos não foram apagados da Silver. Eles permanecem disponíveis para rastreabilidade, mas não participam dos cálculos que dependem de uma base patrimonial válida.
+
+### Valores extremos nos indicadores
+
+Depois do tratamento básico, também foram procurados valores muito altos na taxa de resgate.
+
+Para isso, foi calculado o percentil 95 (P95) da taxa de resgate sobre o patrimônio líquido do dia anterior. O valor encontrado na amostra foi de aproximadamente 0,43%.
+
+Os registros acima desse valor receberam a marcação `evento_extremo_p95 = 1`.
+
+Foram encontrados 54.476 eventos acima do P95 na base analisada.
+
+É importante observar que esses valores extremos já estavam presentes nos dados da CVM utilizados como origem. Eles não foram criados pelo pipeline.
+
+Alguns casos apresentaram resgates muito altos em relação ao patrimônio líquido informado no dia anterior. Esses registros foram mantidos porque podem representar situações específicas da movimentação do fundo e, para este MVP, o objetivo é identificá-los e analisá-los, e não eliminá-los automaticamente.
+
+### Resultado da etapa de qualidade
+
+Depois dos tratamentos, o pipeline apresentou:
+
+| Camada | Registros |
+|---|---:|
+| Bronze | 1.119.386 |
+| Silver | 1.119.383 |
+| Gold diária | 1.119.383 |
+| Gold resumo | 26.077 |
+
+O período analisado foi de 01/07/2026 a 31/08/2026.
+
+A etapa de qualidade permitiu separar três situações diferentes: problemas que precisavam ser tratados para evitar duplicidade ou cálculo inválido, campos que estavam ausentes na própria fonte e valores extremos que deveriam ser identificados, mas não necessariamente excluídos.
+
+Essa separação foi importante para manter a rastreabilidade dos dados e evitar que o tratamento de qualidade alterasse indevidamente as informações recebidas da fonte.
 
 ## 9. Resultados analíticos
 
