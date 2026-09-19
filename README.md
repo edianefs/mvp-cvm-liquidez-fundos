@@ -172,9 +172,9 @@ As tabelas do notebook de análise foram usadas para responder diretamente às t
 
 **Resposta à P1:** os fundos que aparecem no topo da tabela são aqueles que apresentaram a maior razão entre os resgates acumulados e o PL médio no período analisado.
 
-O maior valor observado foi de aproximadamente **46,31 vezes o PL médio**, referente ao CNPJ `52.984.696/0001-31`. Na sequência aparecem fundos com índices de aproximadamente 44,23, 44,09, 43,46 e 42,43 vezes o PL médio.
+O maior valor observado foi de aproximadamente 46,31 vezes o PL médio, referente ao CNPJ `52.984.696/0001-31`. Na sequência aparecem fundos com índices de aproximadamente 44,23, 44,09, 43,46 e 42,43 vezes o PL médio.
 
-Portanto, a resposta à pergunta P1 é que os maiores índices se concentram em fundos nos quais o volume acumulado de resgates foi muito elevado em relação ao PL médio observado no período. O resultado deve ser interpretado como uma **razão acumulada**, e não como a afirmação de que o fundo resgatou 46 vezes seu patrimônio em um único evento.
+Portanto, a resposta à pergunta P1 é que os maiores índices se concentram em fundos nos quais o volume acumulado de resgates foi muito elevado em relação ao PL médio observado no período. O resultado deve ser interpretado como uma razão acumulada, e não como a afirmação de que o fundo resgatou 46 vezes seu patrimônio em um único evento.
 
 No caso do CNPJ `52.984.696/0001-31`, por exemplo, foram registrados aproximadamente R$ 26,86 milhões em resgates acumulados, enquanto o PL médio observado foi de aproximadamente R$ 579,98 mil. Isso produz a razão de 46,31.
 
@@ -182,13 +182,13 @@ No caso do CNPJ `52.984.696/0001-31`, por exemplo, foram registrados aproximadam
 
 **Resposta à P2:** os fundos que aparecem no topo da tabela apresentaram fluxo líquido negativo em todos os dias válidos considerados no período.
 
-A primeira posição da tabela, assim como os demais fundos destacados no resultado, apresenta **44 dias válidos e 44 dias com fluxo líquido negativo**, correspondendo a **100% dos dias considerados**. Isso significa que, nesses fundos, em todos os dias válidos analisados, os resgates foram superiores às captações:
+A primeira posição da tabela, assim como os demais fundos destacados no resultado, apresenta 44 dias válidos e 44 dias com fluxo líquido negativo, correspondendo a 100% dos dias considerados. Isso significa que, nesses fundos, em todos os dias válidos analisados, os resgates foram superiores às captações:
 
 `CAPTC_DIA - RESG_DIA < 0`
 
 Como consequência, o fluxo líquido acumulado no período também é negativo. Por exemplo, entre os fundos destacados na tabela, o CNPJ `41.575.707/0001-03` apresentou fluxo líquido acumulado de aproximadamente -R$ 1,03 bilhão.
 
-Assim, a resposta à P2 é que existem fundos com **recorrência diária de saída líquida durante todo o período válido analisado**. Essa métrica descreve o comportamento observado nos dados e, isoladamente, não caracteriza situação regulatória ou conclusão definitiva sobre risco de liquidez.
+Assim, a resposta à P2 é que existem fundos com recorrência diária de saída líquida durante todo o período válido analisado. Essa métrica descreve o comportamento observado nos dados e, isoladamente, não caracteriza situação regulatória ou conclusão definitiva sobre risco de liquidez.
 
 ### P3 — Eventos acima do P95
 
