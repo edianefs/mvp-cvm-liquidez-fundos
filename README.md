@@ -1,248 +1,234 @@
 # MVP — Indicadores de Risco de Liquidez em Fundos de Investimento
 
-## Objetivo do projeto
+## 1. Objetivo
 
-Este MVP demonstra a construção de um pipeline de dados ponta a ponta para apoiar **monitoramento analítico de liquidez em fundos de investimento**, utilizando exclusivamente dados públicos da Comissão de Valores Mobiliários (CVM).
+Este MVP demonstra a construção de um pipeline de dados ponta a ponta para apoiar o **monitoramento analítico de liquidez em fundos de investimento**, utilizando dados públicos da Comissão de Valores Mobiliários (CVM).
 
-O projeto foi desenhado para um contexto acadêmico de Ciência de Dados e Analytics, com possível aplicação conceitual em **Compliance, Controles Internos e Gestão de Riscos** de uma corretora de valores, sem utilizar dados internos da Banrisul Corretora de Valores Mobiliários e Câmbio e sem utilizar dados pessoais.
+O projeto foi desenvolvido em Databricks, com processamento em PySpark e armazenamento em tabelas Delta no Unity Catalog. O código é versionado no GitHub.
 
-> **Importante:** os indicadores deste MVP são métricas analíticas/descritivas para apoio a monitoramento. Eles **não constituem classificação regulatória de risco de liquidez**, nem substituem políticas, metodologias, limites ou controles formais da instituição.
+Os indicadores produzidos são **descritivos e analíticos**. Eles servem como sinais para investigação e monitoramento e não constituem classificação regulatória de risco, recomendação de investimento ou substituição de metodologias e controles institucionais.
 
-## Fonte de dados
+## 2. Fonte dos dados
 
-A fonte principal é o conjunto **Fundos de Investimento: Documentos: Informe Diário**, do Portal Dados Abertos da CVM.
+A fonte principal é o conjunto **Fundos de Investimento: Documentos: Informe Diário**, do Portal Dados Abertos da CVM:
 
-A CVM informa que o Informe Diário contém, entre outras, as informações de valor total da carteira, patrimônio líquido, valor da cota, captações, resgates e número de cotistas. O conjunto disponibiliza os informes diários dos fundos dos últimos doze meses e possui atualização periódica. A licença informada no Portal é a **Open Data Commons Open Database License (ODbL)**.
+https://dados.cvm.gov.br/dataset/fi-doc-inf_diario
 
-Fonte oficial: https://dados.cvm.gov.br/dataset/fi-doc-inf_diario
+O Informe Diário contém, entre outras informações, patrimônio líquido, valor da cota, captações, resgates e número de cotistas.
 
-No momento de elaboração deste MVP, o portal disponibilizava arquivos mensais e indicava atualização até setembro de 2026. Para evitar dependência de dados incompletos do mês corrente, o pipeline utiliza como amostra principal **julho/2026 e agosto/2026**, dois meses completos imediatamente anteriores ao mês corrente.
+A amostra utilizada no MVP compreende os meses completos de **julho/2026 e agosto/2026**:
 
-Arquivos utilizados pelo pipeline:
+- `inf_diario_fi_202607.zip`
+- `inf_diario_fi_202608.zip`
 
-- `https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_202607.zip`
-- `https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_202608.zip`
+Os arquivos de origem não são versionados no GitHub. O código do pipeline e as evidências da execução são versionados.
 
-O projeto não versiona os arquivos de dados no GitHub. Os ZIPs são baixados manualmente da fonte oficial e carregados para o Volume do Databricks antes da execução do notebook.
+## 3. Contexto e perguntas de negócio
 
-## Contexto de negócios e perguntas
-
-### Contexto
-
-Em um ambiente de controles internos e gestão de riscos, uma rotina de monitoramento pode precisar identificar, de maneira reproduzível, fundos que apresentem movimentos de resgate relevantes em relação ao patrimônio líquido, sequência de dias de fluxo líquido negativo ou episódios extremos de resgate.
-
-O MVP transforma os registros diários da CVM em indicadores analíticos que podem ser usados como **sinais para investigação**. O objetivo não é afirmar que um fundo possui risco regulatório, mas demonstrar como dados públicos podem sustentar um processo de monitoramento e priorização de exceções.
+O MVP busca transformar os registros diários da CVM em indicadores reproduzíveis para apoiar a identificação de eventos que mereçam investigação no contexto de monitoramento de liquidez.
 
 ### Problema
 
 **Como transformar os dados públicos do Informe Diário da CVM em indicadores simples e reproduzíveis que permitam priorizar a análise de eventos de liquidez em fundos de investimento?**
 
-### Perguntas de negócio
+### Perguntas
 
-**P1.** Quais fundos apresentaram as maiores taxas acumuladas de resgate em relação ao patrimônio líquido no período analisado?
+**P1.** Quais fundos apresentaram as maiores taxas acumuladas de resgate em relação ao patrimônio líquido médio no período?
 
-**P2.** Quais fundos apresentaram maior frequência de dias com fluxo líquido negativo (`resgates > captações`)?
+**P2.** Quais fundos apresentaram maior frequência de dias com fluxo líquido negativo?
 
-**P3.** Quais fundos concentraram mais ocorrências de resgates diários extremos, definidos de forma **relativa à própria amostra** pelo percentil 95 da taxa `resgates / patrimônio líquido do dia anterior`?
+**P3.** Quais fundos concentraram mais ocorrências de resgates diários extremos, definidos relativamente à amostra pelo percentil 95 da taxa de resgate sobre o patrimônio líquido do dia anterior?
 
-Estas perguntas foram mantidas como objetivo original do MVP. Caso alguma não possa ser respondida por problema de qualidade ou disponibilidade dos dados, isso deverá ser explicitado na autoavaliação, conforme orientação do trabalho.
+## 4. Arquitetura do pipeline
 
-## Estrutura do dado bruto
+O fluxo implementado é:
 
-O Informe Diário da CVM apresenta, no layout atualmente utilizado, os campos principais. A CVM registra que, a partir de 2024, o conjunto passou a utilizar `TP_FUNDO_CLASSE`, `CNPJ_FUNDO_CLASSE` e `ID_SUBCLASSE`.
+`dados públicos CVM → Bronze → Silver → Gold diária → Gold resumo → análise`
 
-| Campo | Uso no MVP |
-|---|---|
-| `TP_FUNDO_CLASSE` | Tipo do registro/fundo, mantido para rastreabilidade |
-| `CNPJ_FUNDO_CLASSE` | Identificador público da classe/fundo |
-| `ID_SUBCLASSE` | Identificador da subclasse, quando aplicável |
-| `DT_COMPTC` | Data de competência do informe |
-| `VL_TOTAL` | Valor total da carteira |
-| `VL_QUOTA` | Valor da cota |
-| `VL_PATRIM_LIQ` | Patrimônio líquido |
-| `CAPTC_DIA` | Captações realizadas no dia |
-| `RESG_DIA` | Resgates pagos no dia |
-| `NR_COTST` | Número de cotistas |
+### Bronze
 
-O projeto trabalha somente com informações públicas de fundos. Não são utilizados nomes de clientes, CPF, dados de conta, posição individual de investidores ou informações internas da empresa.
+`bronze_informe_diario`
 
-## Carga dos dados (Etapa 4.2)
+Preserva os dados de origem em formato Delta e acrescenta metadados de ingestão e arquivo de origem.
 
-A preparação dos dados é executada no Notebook `notebooks/01_pipeline_cvm_liquidez.py`. A aquisição dos ZIPs é manual no computador do aluno e a extração/leitura ocorre no Databricks.
+### Silver
 
-Fluxo:
+`silver_informe_diario`
 
-1. Criar um Volume no Unity Catalog para os arquivos brutos.
-2. Baixar os dois ZIPs mensais diretamente do Portal Dados Abertos da CVM no computador do aluno.
-3. Fazer upload dos ZIPs para `/Volumes/workspace/cvm_liquidez/raw`.
-4. O notebook localiza os ZIPs, extrai automaticamente os CSVs e os organiza por mês.
-5. Ler os CSVs no Spark e persistir a camada Bronze como tabela Delta.
+Realiza:
 
-A carga manual foi adotada porque a Databricks Free Edition restringe o acesso de saída à internet. O trabalho permite explicitamente o fluxo simples de download do dataset e upload para a plataforma em nuvem.
-Não é necessário publicar os dados no GitHub; apenas o código é versionado.
+- padronização dos tipos;
+- conversão da data de competência;
+- tratamento técnico de `ID_SUBCLASSE` ausente;
+- identificação de chaves duplicadas;
+- deduplicação;
+- criação da variável `is_valid_base`.
 
-## Modelagem e Catálogo de Dados (Etapa 4.3)
+### Gold diária
 
-Foi adotado um modelo simples, adequado ao escopo do MVP:
+`gold_indicadores_liquidez_diarios`
 
-- `bronze_informe_diario`: cópia estruturada do dado de origem, preservando o conteúdo original com metadados de ingestão.
-- `silver_informe_diario`: dados padronizados, tipados, deduplicados e com regras de qualidade aplicadas.
-- `gold_indicadores_liquidez_diarios`: tabela fato analítica diária, com os indicadores calculados para cada fundo/data.
-- `gold_resumo_liquidez_fundo`: tabela agregada por fundo para responder diretamente às perguntas de negócio.
+Calcula os indicadores diários, incluindo fluxo líquido, taxas de resgate e fluxo líquido sobre patrimônio líquido, patrimônio líquido do dia anterior e sinalização de eventos acima do P95 da amostra.
 
-### Catálogo de dados
+### Gold resumo
 
-O catálogo completo está no arquivo `sql/catalogo.sql` e também pode ser visualizado no Unity Catalog após as tabelas serem criadas.
+`gold_resumo_liquidez_fundo`
 
-### Modelo lógico
+Agrega os dados por `CNPJ_FUNDO_CLASSE` e `ID_SUBCLASSE`, permitindo responder diretamente às perguntas P1 e P2 e apoiar a análise P3.
 
-`bronze_informe_diario` → `silver_informe_diario` → `gold_indicadores_liquidez_diarios` → `gold_resumo_liquidez_fundo`
+## 5. Indicadores
 
-Não foi utilizado esquema estrela neste MVP porque o problema possui uma única entidade fato diária e não exige dimensões adicionais para responder às perguntas definidas.
-
-## Pipeline de Dados (Etapa 4.4)
-
-Para simplificar a implementação e facilitar a auditoria acadêmica, o pipeline foi organizado em **um único Notebook Databricks**, com células identificadas por etapa:
-
-1. Configuração e parâmetros.
-2. Coleta dos dados CVM.
-3. Bronze.
-4. Silver.
-5. Gold.
-6. Qualidade.
-7. Consultas finais.
-
-O código está em `notebooks/01_pipeline_cvm_liquidez.py`.
-
-### Comandos que devem aparecer no pipeline
-
-A execução deve evidenciar, no mínimo, os seguintes blocos:
-
-- `CREATE SCHEMA IF NOT EXISTS`
-- `CREATE VOLUME IF NOT EXISTS`
-- upload dos ZIPs oficiais para o Volume e extração via `zipfile`
-- extração via `zipfile`
-- `spark.read.option(...).csv(...)`
-- `CREATE OR REPLACE TABLE ... USING DELTA`
-- `dropDuplicates`
-- conversões de tipo com `cast`
-- `lag` / janela temporal
-- cálculos de `fluxo_liquido`, `taxa_resgate_pl`, `taxa_fluxo_liquido_pl` e `taxa_resgate_sobre_pl_anterior`
-- `percentile_approx` para o limite estatístico do percentil 95
-- gravação das tabelas Gold
-
-### Execução no Databricks
-
-1. Criar um workspace no Databricks Free Edition.
-2. Criar/conectar o repositório GitHub ao Databricks Repos.
-3. Importar/conectar o conteúdo deste repositório.
-4. No Catalog Explorer, abrir `workspace > cvm_liquidez > Volumes > raw`.
-5. Fazer upload dos arquivos `inf_diario_fi_202607.zip` e `inf_diario_fi_202608.zip`.
-6. Abrir `notebooks/01_pipeline_cvm_liquidez.py` como notebook.
-7. Executar as células em ordem, do início ao fim.
-8. Verificar as tabelas no catálogo.
-9. Executar `02_qualidade_cvm_liquidez.py` e depois `03_analise_cvm_liquidez.py`.
-
-## Qualidade de Dados (Etapa 4.5)
-
-A qualidade é tratada antes da análise final.
-
-São verificados:
-
-- **Completude:** nulos em identificador, data e métricas principais.
-- **Consistência:** tipos de data e numéricos; valores negativos em métricas que, no contexto do dado, deveriam ser não negativos.
-- **Unicidade:** duplicidade por `CNPJ_FUNDO_CLASSE + ID_SUBCLASSE + DT_COMPTC`, usando uma chave técnica para subclasse ausente.
-- **Acurácia lógica:** casos de patrimônio líquido zero/nulo, necessários para evitar divisão por zero.
-- **Outliers:** distribuição das taxas de resgate e fluxo líquido, sem exclusão automática de extremos.
-
-A regra central do MVP é **não apagar silenciosamente eventos extremos**. Os registros permanecem disponíveis e são sinalizados para análise.
-
-As consultas de qualidade estão em `notebooks/02_qualidade_cvm_liquidez.py`.
-
-## Análise de Dados (Etapa 4.5)
-
-A análise final está em `notebooks/03_analise_cvm_liquidez.py` e pode ser executada após o pipeline principal.
-
-### Indicadores
-
-**Fluxo líquido diário**
+### Fluxo líquido diário
 
 `fluxo_liquido = CAPTC_DIA - RESG_DIA`
 
-**Taxa diária de resgate sobre patrimônio líquido**
+### Taxa diária de resgate sobre PL
 
 `taxa_resgate_pl = RESG_DIA / VL_PATRIM_LIQ`
 
-**Taxa diária de fluxo líquido sobre patrimônio líquido**
+### Taxa diária de fluxo líquido sobre PL
 
 `taxa_fluxo_liquido_pl = (CAPTC_DIA - RESG_DIA) / VL_PATRIM_LIQ`
 
-**Taxa de resgate sobre patrimônio líquido do dia anterior**
+### Taxa de resgate sobre PL do dia anterior
 
 `taxa_resgate_sobre_pl_anterior = RESG_DIA / VL_PATRIM_LIQ_D1`
 
-A utilização do patrimônio líquido do dia anterior busca evitar que o próprio resgate do dia seja usado simultaneamente como denominador do indicador de estresse.
+O uso do PL do dia anterior permite analisar o volume de resgate em relação à base patrimonial observada antes do evento.
 
-**Evento extremo relativo da amostra**
+### Evento extremo pelo P95
 
-É calculado o percentil 95 (`P95`) da `taxa_resgate_sobre_pl_anterior` na amostra válida. Um evento acima desse percentil é marcado como `evento_extremo_p95 = 1`.
+O percentil 95 da distribuição amostral de `taxa_resgate_sobre_pl_anterior` é calculado sobre os registros válidos. Observações acima desse ponto recebem `evento_extremo_p95 = 1`.
 
-Isso é um critério estatístico do MVP, e **não um limite regulatório da CVM**.
+O P95 é um **critério estatístico construído para este MVP** e não representa limite, regra ou parâmetro regulatório da CVM.
 
-### Respostas das perguntas
+### Indicador acumulado de P1
 
-O notebook final produz três tabelas de resposta:
+`taxa_resgate_acumulada_rel_pl_medio`
 
-- `resultado_p1_maiores_taxas_resgate`
-- `resultado_p2_maior_frequencia_fluxo_negativo`
-- `resultado_p3_eventos_extremos_p95`
+representa a razão entre os resgates acumulados no período e o PL médio observado. Por ser acumulado, não deve ser interpretado como percentual do patrimônio resgatado em um único evento.
 
-Os valores apresentados no trabalho devem ser copiados **após a execução real** no Databricks. Não devem ser preenchidos com números estimados.
+## 6. Qualidade dos dados
 
-### Texto pronto para P1 — substituir os campos entre colchetes
+A qualidade foi verificada antes da análise final, contemplando:
 
-> **P1 — Resultado:** No período analisado, os fundos que apresentaram as maiores taxas acumuladas de resgate relativas ao patrimônio líquido médio foram **[CNPJ 1]**, **[CNPJ 2]** e **[CNPJ 3]**, conforme a ordenação produzida pela tabela `resultado_p1_maiores_taxas_resgate`. As taxas observadas foram, respectivamente, **[valor 1]**, **[valor 2]** e **[valor 3]**. O resultado indica maior intensidade relativa de resgates na amostra e serve como sinal para priorização de análise.
+- completude;
+- consistência;
+- duplicidades;
+- registros não válidos para os indicadores principais;
+- valores extremos.
 
-### Texto pronto para P2 — substituir os campos entre colchetes
+### Resultados observados
 
-> **P2 — Resultado:** Os fundos com maior frequência de dias de fluxo líquido negativo foram **[CNPJ 1]**, **[CNPJ 2]** e **[CNPJ 3]**, com **[n1]**, **[n2]** e **[n3]** dias negativos, correspondendo a **[p1]%**, **[p2]%** e **[p3]%** dos dias válidos, respectivamente. A métrica indica recorrência de saídas líquidas na amostra, não uma classificação regulatória de risco.
+- Bronze: **1.119.386 linhas**
+- Silver: **1.119.383 linhas**
+- Gold diária: **1.119.383 linhas**
+- Gold resumo: **26.077 linhas**
+- Período analisado: **01/07/2026 a 31/08/2026**
+- Registros não válidos para os indicadores principais: **4.720**
+- Chaves duplicadas identificadas no Bronze: **3**
+- Eventos acima do P95: **54.476**
 
-### Texto pronto para P3 — substituir os campos entre colchetes
+A diferença de três linhas entre Bronze e Silver corresponde às duplicidades removidas pela regra de deduplicação.
 
-> **P3 — Resultado:** O percentil 95 da taxa diária de resgate sobre o patrimônio líquido do dia anterior foi de **[P95 real]**. Os fundos com maior quantidade de ocorrências acima desse ponto foram **[CNPJ 1]**, **[CNPJ 2]** e **[CNPJ 3]**, com **[n1]**, **[n2]** e **[n3]** ocorrências. O P95 foi utilizado exclusivamente como critério estatístico relativo à amostra do MVP e não representa limite ou parâmetro regulatório da CVM.
+`ID_SUBCLASSE` apresenta alta incidência de valores nulos na fonte. Esses valores não foram artificialmente preenchidos. Foi criada uma chave técnica para permitir o tratamento consistente das observações sem subclasse, mantendo o CNPJ da classe/fundo como principal identificador público das análises.
 
-## Evidências / screenshots exigidos
+Valores extremos foram preservados e sinalizados, em vez de serem excluídos automaticamente.
 
-Inserir no README/PDF final as seguintes imagens, nesta ordem:
+## 7. Resultados analíticos
 
-**Imagem 1 — Fonte dos dados.** Screenshot da página da CVM mostrando o conjunto “Fundos de Investimento: Documentos: Informe Diário” e a licença.
+### P1 — Resgates acumulados sobre PL médio
 
-**Imagem 2 — Arquivos baixados.** Screenshot do volume/caminho no Databricks contendo os arquivos de julho e agosto de 2026.
+O indicador identifica fundos com maior volume de resgates acumulados em relação ao PL médio do período.
 
-**Imagem 3 — Bronze.** Screenshot da tabela `bronze_informe_diario` no Databricks, mostrando colunas e registros.
+O maior valor observado na amostra foi de aproximadamente **46,31**, referente ao CNPJ `52.984.696/0001-31`. Esse resultado deve ser interpretado como uma razão acumulada entre resgates e PL médio, e não como a afirmação de que o fundo resgatou 46 vezes seu patrimônio em um único evento.
 
-**Imagem 4 — Catálogo.** Screenshot do Unity Catalog com a tabela Silver e suas descrições de campos.
+### P2 — Frequência de fluxo líquido negativo
 
-**Imagem 5 — Pipeline.** Screenshot do Notebook `01_pipeline_cvm_liquidez.py` mostrando os blocos de execução Bronze → Silver → Gold.
+Os resultados identificam fundos com recorrência de dias em que:
 
-**Imagem 6 — Persistência.** Screenshot mostrando as tabelas Gold criadas no Databricks.
+`CAPTC_DIA - RESG_DIA < 0`
 
-**Imagem 7 — Qualidade.** Screenshot do resultado das consultas de qualidade.
+Na primeira posição da tabela, há fundos com **44 dias válidos e 44 dias de fluxo líquido negativo**, correspondendo a 100% dos dias considerados para aquele fundo. A métrica descreve recorrência de saída líquida no período e, isoladamente, não caracteriza situação regulatória.
 
-**Imagem 8 — Resultado P1.** Screenshot do resultado da consulta que responde P1.
+### P3 — Eventos acima do P95
 
-**Imagem 9 — Resultado P2.** Screenshot do resultado da consulta que responde P2.
+O P95 calculado na amostra foi aproximadamente **0,43%**.
 
-**Imagem 10 — Resultado P3.** Screenshot do resultado da consulta que responde P3.
+Os resultados de P3 identificam fundos que apresentaram maior quantidade de observações acima desse ponto estatístico. Trata-se de uma classificação relativa à distribuição observada nos dados do MVP, sem interpretação como limite regulatório.
 
-Não inserir screenshots de dados internos da Banrisul Corretora, clientes ou qualquer informação não pública.
+## 8. Exemplo de série temporal
 
-## GitHub
+Foi analisada a série do CNPJ `52.984.696/0001-31` para demonstrar o comportamento dos indicadores ao longo do período.
 
-O repositório deve ser público e conter pelo menos:
+Em 06/07/2026, por exemplo, foi observado resgate de aproximadamente R$ 26,86 milhões frente a PL anterior de aproximadamente R$ 579,4 mil, resultando em taxa de resgate sobre PL anterior próxima de 46,34.
 
-```text
-mvp_cvm_liquidez/
+O exemplo evidencia por que eventos extremos devem ser preservados e investigados, em vez de removidos automaticamente.
+
+## 9. Tratamento de erros e decisões técnicas
+
+Durante a execução foram registrados erros e as respectivas correções. As evidências foram preservadas no repositório, conforme a orientação acadêmica de documentar o processo de resolução.
+
+### Erro 1 — referência de coluna inexistente
+
+**Problema identificado:** uma etapa do pipeline apresentou erro de resolução de coluna relacionado ao campo `TP_FUNDO`.
+
+**Diagnóstico:** o layout utilizado pela CVM emprega `TP_FUNDO_CLASSE`, e não `TP_FUNDO`.
+
+**Ação corretiva:** a referência foi ajustada para `TP_FUNDO_CLASSE`, mantendo o campo compatível com o layout efetivamente carregado.
+
+**Resultado:** a etapa passou a executar corretamente e a tabela Silver foi gravada.
+
+**Evidências:**
+
+![Erro de referência de coluna](docs/imagens/primeiro%20erro%20-.PNG)
+
+![Correção e resultado](docs/imagens/p1c3%20-%20altera%C3%A7%C3%A3o%20da%20celula%20com%20erro%20e%20resultado.PNG)
+
+### Outras verificações de qualidade
+
+Além do erro de implementação registrado acima, foram verificadas duplicidades, registros inválidos, valores negativos e outliers. Essas ocorrências foram tratadas como parte da qualidade dos dados e não como erros de execução.
+
+As evidências completas permanecem em `docs/imagens/`.
+
+## 10. Evidências da execução
+
+As principais evidências visuais estão organizadas em `docs/imagens/`.
+
+### Fonte e carga
+
+![Dados públicos da CVM](docs/imagens/dados%20publicos%20carregados%20para%20a%20nuvem%20-%20carga%20de%20dados.PNG)
+
+### Modelagem e catálogo
+
+![Catálogo de dados](docs/imagens/evidencias%20do%20catalogo%20-%20modelagem%20e%20catalogo%20de%20dados.PNG)
+
+### Camada Gold
+
+![Camada Gold](docs/imagens/camada%20gold.PNG)
+
+### Qualidade
+
+![Completude da Silver](docs/imagens/p2c12_%20completude%20silver.PNG)
+
+### P1
+
+![Resultado P1](docs/imagens/p3c1%20-%20p1.PNG)
+
+### P2
+
+![Resultado P2](docs/imagens/p3c2%20-%20p2.PNG)
+
+### P3
+
+![Resultado P3](docs/imagens/p3c3%20-%20p3.PNG)
+
+As demais evidências de execução, inclusive as utilizadas na validação das camadas Bronze, Silver e Gold, permanecem no diretório `docs/imagens/`.
+
+## 11. Estrutura do repositório
+
+```
+mvp-cvm-liquidez-fundos/
 ├── README.md
 ├── notebooks/
 │   ├── 01_pipeline_cvm_liquidez.py
@@ -252,35 +238,49 @@ mvp_cvm_liquidez/
 │   ├── catalogo.sql
 │   └── consultas_analise.sql
 └── docs/
-    └── ENTENDIMENTO_NAO_ENTRA_NO_TRABALHO.md
+    └── imagens/
 ```
 
-## Autoavaliação
+## 12. Reprodutibilidade
 
-### Atingimento do objetivo
+O pipeline foi implementado no Databricks e organizado em três notebooks:
 
-> **Preencher após a execução:** O objetivo do MVP foi **[atingido integralmente / atingido parcialmente]**. A pergunta P1 foi **[respondida / não respondida]**, a P2 foi **[respondida / não respondida]** e a P3 foi **[respondida / não respondida]**. As principais razões para eventuais limitações foram **[descrever somente fatos que realmente ocorreram]**.
+1. `01_pipeline_cvm_liquidez.py` — ingestão, Bronze, Silver e Gold;
+2. `02_qualidade_cvm_liquidez.py` — verificações de qualidade;
+3. `03_analise_cvm_liquidez.py` — respostas às perguntas P1, P2 e P3 e exemplo de série temporal.
 
-### Dificuldades encontradas
+As tabelas utilizadas são:
 
-> **Preencher após a execução:** Durante a implementação, as principais dificuldades foram **[descrever apenas as dificuldades efetivamente encontradas]**. As soluções adotadas foram **[descrever as soluções efetivamente aplicadas]**.
+- `workspace.cvm_liquidez.bronze_informe_diario`
+- `workspace.cvm_liquidez.silver_informe_diario`
+- `workspace.cvm_liquidez.gold_indicadores_liquidez_diarios`
+- `workspace.cvm_liquidez.gold_resumo_liquidez_fundo`
 
-### Trabalhos futuros
+## 13. Limitações
+
+- A análise cobre somente 01/07/2026 a 31/08/2026.
+- Os indicadores dependem da qualidade e da estrutura dos dados públicos de origem.
+- O indicador de resgates acumulados sobre PL médio é uma razão acumulada e deve ser interpretado nesse contexto.
+- O P95 é um limiar estatístico da amostra do MVP, não um parâmetro regulatório.
+- Valores extremos foram preservados e sinalizados.
+- A alta incidência de `ID_SUBCLASSE` nulo limita análises específicas por subclasse.
+- Os resultados não constituem avaliação regulatória, recomendação de investimento ou conclusão definitiva sobre risco de liquidez de qualquer fundo.
+
+## 14. Trabalhos futuros
 
 Como evolução do MVP, podem ser considerados:
 
-- inclusão de janela histórica maior;
-- inclusão do cadastro de fundos para trazer atributos cadastrais e nomes, quando apropriado;
-- acompanhamento automatizado e periódico;
-- dashboard de exceções;
-- definição institucional de limites, somente com metodologia aprovada pela área responsável;
-- monitoramento de reincidência de eventos e tempo de recuperação.
+- ampliação da janela histórica;
+- integração com dados cadastrais dos fundos;
+- atualização periódica automatizada;
+- dashboard de acompanhamento de exceções;
+- análise de reincidência e persistência dos eventos;
+- definição de indicadores complementares de liquidez.
 
-## Referências
+## 15. Referências
 
 - CVM — Fundos de Investimento: Documentos: Informe Diário: https://dados.cvm.gov.br/dataset/fi-doc-inf_diario
 - CVM — Fundos de Investimento: Informação Cadastral: https://dados.cvm.gov.br/dataset/fi-cad
 - Databricks — Documentação: https://docs.databricks.com/
 - Databricks — Unity Catalog: https://docs.databricks.com/aws/en/data-governance/unity-catalog/
 - Databricks — Delta Lake: https://docs.databricks.com/aws/en/delta/
-
