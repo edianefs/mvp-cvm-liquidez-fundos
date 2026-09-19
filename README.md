@@ -260,7 +260,7 @@ Os resultados foram:
 - resgate negativo: 0;
 - número de cotistas negativo: 0.
 
-Os 1.383 registros com patrimônio líquido negativo foram identificados na verificação de qualidade. Como não foi criada uma regra no pipeline para alterar esses valores, eles permanecem na base. Assim, o README registra o que foi encontrado, sem afirmar que esses valores foram corrigidos.
+Os 1.383 registros com patrimônio líquido negativo foram identificados na verificação de qualidade e permanecem na base. Como não foi definida uma regra para excluir ou alterar esses registros, o valor original é preservado.
 
 ### Registros inválidos para os indicadores principais
 
@@ -278,7 +278,7 @@ O P95 encontrado foi de aproximadamente 0,43%. Os registros acima desse valor re
 
 Foram encontrados 54.476 eventos acima do P95 na base analisada.
 
-As consultas de qualidade também permitiram verificar exemplos desses valores na Bronze, mostrando que os valores de origem já apresentavam movimentos de resgate muito altos em relação ao patrimônio líquido informado. Por isso, o tratamento adotado foi marcar esses casos como extremos, e não alterar seus valores.
+As consultas de qualidade também permitiram verificar exemplos desses valores na Bronze, mostrando que os dados de origem já apresentavam movimentos de resgate muito altos em relação ao patrimônio líquido informado. Por isso, esses casos são marcados como extremos pelo campo `evento_extremo_p95`.
 
 ### Resultado da etapa de qualidade
 
@@ -293,7 +293,7 @@ Depois das transformações, as contagens registradas foram:
 
 O período analisado foi de 01/07/2026 a 31/08/2026.
 
-As evidências de qualidade mostram, portanto, quais problemas foram encontrados e quais tratamentos foram efetivamente aplicados: a Silver elimina as duplicidades identificadas, cria uma chave para os registros sem subclasse e marca a validade dos registros para os cálculos. Os valores negativos de PL e os valores extremos são identificados, mas não são alterados automaticamente.
+As evidências de qualidade mostram quais problemas foram encontrados e quais tratamentos foram aplicados: na Silver, as duplicidades são identificadas e reduzidas a um registro por chave, é criada uma chave auxiliar para os registros sem subclasse e é criada a marcação `is_valid_base` para indicar se o registro atende aos critérios usados nos cálculos. Os valores negativos de PL e os valores extremos são identificados, mas não são alterados.
 
 ## 9. Resultados analíticos
 
@@ -339,11 +339,11 @@ Em 06/07/2026, por exemplo, foi observado resgate de aproximadamente R$ 26,86 mi
 
 O exemplo evidencia por que eventos extremos devem ser preservados e investigados, em vez de removidos automaticamente.
 
-## 11. Tratamento de erros e decisões técnicas
+## 11. Tratamento de erros
 
 Durante o desenvolvimento, encontrei alguns erros e fui corrigindo-os conforme entendia a causa. As evidências dessas correções foram mantidas no repositório, conforme solicitado na atividade.
 
-### Erro 1 — referência de coluna inexistente
+### Erro — referência de coluna inexistente
 
 **Problema identificado:** uma etapa do pipeline apresentou erro de resolução de coluna relacionado ao campo `TP_FUNDO`.
 
@@ -359,7 +359,7 @@ Durante o desenvolvimento, encontrei alguns erros e fui corrigindo-os conforme e
 
 ![Correção e resultado](docs/imagens/p1c3%20-%20altera%C3%A7%C3%A3o%20da%20celula%20com%20erro%20e%20resultado.PNG)
 
-### Outras verificações de qualidade
+### Verificações adicionais de qualidade
 
 Também verifiquei duplicidades, registros inválidos, valores negativos e valores muito altos ou baixos. Essas situações fazem parte da análise da qualidade dos dados.
 
@@ -415,7 +415,7 @@ mvp-cvm-liquidez-fundos/
     └── imagens/
 ```
 
-## 14. Reprodutibilidade
+## 14. Como reproduzir o projeto
 
 O projeto foi organizado no Databricks em três notebooks:
 
@@ -442,7 +442,7 @@ As tabelas utilizadas são:
 
 ## 16. Trabalhos futuros
 
-Como próximos passos, seria interessante analisar um período maior, atualizar os dados de forma automática e acrescentar outras informações dos fundos. Também seria possível criar um acompanhamento das situações que chamassem mais atenção. Essas melhorias poderiam tornar o projeto mais útil para atividades de monitoramento, controles e análise de risco. O aprendizado deste trabalho também pode ser aproveitado em outros projetos de análise de dados.
+Como próximos passos, seria interessante ampliar o período analisado e atualizar os dados de forma automática, permitindo acompanhar a evolução dos indicadores ao longo do tempo. Também seria possível incluir outras informações dos fundos e criar uma forma mais simples de acompanhar os casos que apresentassem resultados extremos ou saídas líquidas recorrentes. Essas melhorias permitiriam usar os resultados em análises mais contínuas de monitoramento, controles e risco. O que foi aprendido neste projeto também pode ser aplicado em outras análises de dados.
 
 ## 17. Autoavaliação
 
