@@ -22,6 +22,10 @@ A amostra utilizada no MVP compreende os meses completos de **julho/2026 e agost
 - `inf_diario_fi_202608.zip`
 
 Os arquivos de origem não são versionados no GitHub. O código do pipeline e as evidências da execução são versionados.
+### Licença e contexto da fonte
+
+O conjunto **Fundos de Investimento: Documentos: Informe Diário** está disponibilizado no Portal Dados Abertos da CVM sob a **Licença Aberta para Bases de Dados (ODbL) do Open Data Commons**. A página da CVM também disponibiliza o dicionário de dados do conjunto e informa que os dados são disponibilizados em CSV compactado (ZIP). citeturn0search0turn0search1
+
 
 ## 3. Contexto e perguntas de negócio
 
@@ -39,7 +43,33 @@ O MVP busca transformar os registros diários da CVM em indicadores reproduzíve
 
 **P3.** Quais fundos concentraram mais ocorrências de resgates diários extremos, definidos relativamente à amostra pelo percentil 95 da taxa de resgate sobre o patrimônio líquido do dia anterior?
 
-## 4. Arquitetura do pipeline
+
+## 4. Carga dos dados
+
+A carga foi realizada no **Databricks Free Edition**, utilizando um Volume do Unity Catalog como área de armazenamento dos arquivos de origem.
+
+O fluxo foi: (1) disponibilização dos arquivos mensais no Volume `workspace.cvm_liquidez.raw`; (2) verificação dos ZIPs pelo notebook principal; (3) extração dos CSVs por mês no próprio Volume; (4) leitura dos CSVs pelo Spark com cabeçalho e separador `;`; e (5) gravação da camada Bronze em formato Delta.
+
+O script responsável por essa etapa é `notebooks/01_pipeline_cvm_liquidez.py`. A partir da Bronze, o mesmo notebook executa as transformações para Silver e Gold. A CVM informa que o Informe Diário é disponibilizado em CSV compactado (ZIP). citeturn0search0turn0search11
+
+## 5. Modelagem e catálogo de dados
+
+A modelagem segue a lógica de arquitetura medalhão:
+
+| Camada | Tabela | Finalidade |
+|---|---|---|
+| Bronze | `workspace.cvm_liquidez.bronze_informe_diario` | Preservar os dados de origem com metadados de ingestão |
+| Silver | `workspace.cvm_liquidez.silver_informe_diario` | Tipar, padronizar, sinalizar duplicidades, deduplicar e validar |
+| Gold diária | `workspace.cvm_liquidez.gold_indicadores_liquidez_diarios` | Produzir indicadores diários e eventos extremos |
+| Gold resumo | `workspace.cvm_liquidez.gold_resumo_liquidez_fundo` | Consolidar indicadores por fundo/classe e período |
+
+O catálogo de dados está implementado em `sql/catalogo.sql` e complementado pelo screenshot do Unity Catalog em `docs/imagens/evidencias%20do%20catalogo%20-%20modelagem%20e%20catalogo%20de%20dados.PNG`.
+
+O dicionário da fonte contempla informações como tipo de fundo/classe, identificador, subclasse, data de competência, valor total da carteira, patrimônio líquido, valor da cota, captações, resgates e número de cotistas. citeturn0search0
+
+A linhagem está documentada no catálogo: Bronze recebe os CSVs da CVM; Silver deriva da Bronze por tipagem, chave técnica, deduplicação e validação; Gold diária deriva da Silver por cálculos de indicadores; Gold resumo agrega a Gold diária por fundo/classe. Os comentários do `sql/catalogo.sql` registram descrição, tipo lógico, domínio quando aplicável e origem dos campos.
+
+## 6. Arquitetura do pipeline
 
 O fluxo implementado é:
 
@@ -76,7 +106,7 @@ Calcula os indicadores diários, incluindo fluxo líquido, taxas de resgate e fl
 
 Agrega os dados por `CNPJ_FUNDO_CLASSE` e `ID_SUBCLASSE`, permitindo responder diretamente às perguntas P1 e P2 e apoiar a análise P3.
 
-## 5. Indicadores
+## 7. Indicadores
 
 ### Fluxo líquido diário
 
@@ -108,7 +138,7 @@ O P95 é um **critério estatístico construído para este MVP** e não represen
 
 representa a razão entre os resgates acumulados no período e o PL médio observado. Por ser acumulado, não deve ser interpretado como percentual do patrimônio resgatado em um único evento.
 
-## 6. Qualidade dos dados
+## 8. Qualidade dos dados
 
 A qualidade foi verificada antes da análise final, contemplando:
 
@@ -135,7 +165,7 @@ A diferença de três linhas entre Bronze e Silver corresponde às duplicidades 
 
 Valores extremos foram preservados e sinalizados, em vez de serem excluídos automaticamente.
 
-## 7. Resultados analíticos
+## 9. Resultados analíticos
 
 ### P1 — Resgates acumulados sobre PL médio
 
@@ -157,7 +187,7 @@ O P95 calculado na amostra foi aproximadamente **0,43%**.
 
 Os resultados de P3 identificam fundos que apresentaram maior quantidade de observações acima desse ponto estatístico. Trata-se de uma classificação relativa à distribuição observada nos dados do MVP, sem interpretação como limite regulatório.
 
-## 8. Exemplo de série temporal
+## 10. Exemplo de série temporal
 
 Foi analisada a série do CNPJ `52.984.696/0001-31` para demonstrar o comportamento dos indicadores ao longo do período.
 
@@ -165,7 +195,7 @@ Em 06/07/2026, por exemplo, foi observado resgate de aproximadamente R$ 26,86 mi
 
 O exemplo evidencia por que eventos extremos devem ser preservados e investigados, em vez de removidos automaticamente.
 
-## 9. Tratamento de erros e decisões técnicas
+## 11. Tratamento de erros e decisões técnicas
 
 Durante a execução foram registrados erros e as respectivas correções. As evidências foram preservadas no repositório, conforme a orientação acadêmica de documentar o processo de resolução.
 
@@ -191,7 +221,7 @@ Além do erro de implementação registrado acima, foram verificadas duplicidade
 
 As evidências completas permanecem em `docs/imagens/`.
 
-## 10. Evidências da execução
+## 12. Evidências da execução
 
 As principais evidências visuais estão organizadas em `docs/imagens/`.
 
@@ -225,7 +255,7 @@ As principais evidências visuais estão organizadas em `docs/imagens/`.
 
 As demais evidências de execução, inclusive as utilizadas na validação das camadas Bronze, Silver e Gold, permanecem no diretório `docs/imagens/`.
 
-## 11. Estrutura do repositório
+## 13. Estrutura do repositório
 
 ```
 mvp-cvm-liquidez-fundos/
@@ -241,7 +271,7 @@ mvp-cvm-liquidez-fundos/
     └── imagens/
 ```
 
-## 12. Reprodutibilidade
+## 14. Reprodutibilidade
 
 O pipeline foi implementado no Databricks e organizado em três notebooks:
 
@@ -256,7 +286,7 @@ As tabelas utilizadas são:
 - `workspace.cvm_liquidez.gold_indicadores_liquidez_diarios`
 - `workspace.cvm_liquidez.gold_resumo_liquidez_fundo`
 
-## 13. Limitações
+## 15. Limitações
 
 - A análise cobre somente 01/07/2026 a 31/08/2026.
 - Os indicadores dependem da qualidade e da estrutura dos dados públicos de origem.
@@ -266,7 +296,7 @@ As tabelas utilizadas são:
 - A alta incidência de `ID_SUBCLASSE` nulo limita análises específicas por subclasse.
 - Os resultados não constituem avaliação regulatória, recomendação de investimento ou conclusão definitiva sobre risco de liquidez de qualquer fundo.
 
-## 14. Trabalhos futuros
+## 16. Trabalhos futuros
 
 Como evolução do MVP, podem ser considerados:
 
@@ -277,7 +307,18 @@ Como evolução do MVP, podem ser considerados:
 - análise de reincidência e persistência dos eventos;
 - definição de indicadores complementares de liquidez.
 
-## 15. Referências
+
+## 17. Autoavaliação
+
+O objetivo definido no início do MVP foi atingido no escopo proposto. Foi construído um pipeline de dados ponta a ponta no Databricks, partindo de dados públicos da CVM, passando pelas camadas Bronze, Silver e Gold e chegando a consultas analíticas que respondem às três perguntas de negócio.
+
+As três perguntas foram respondidas com indicadores reproduzíveis: P1 analisou resgates acumulados em relação ao PL médio, P2 analisou a frequência de dias com fluxo líquido negativo e P3 identificou ocorrências acima do P95 da amostra. As respostas foram acompanhadas de interpretação e evidências visuais no repositório.
+
+As principais dificuldades estiveram no entendimento do layout da fonte, no tratamento de nulos e duplicidades e na interpretação adequada de eventos extremos. Durante a execução, o erro relacionado à coluna `TP_FUNDO` foi identificado e corrigido para `TP_FUNDO_CLASSE`, com as evidências preservadas. A alta incidência de `ID_SUBCLASSE` nulo também exigiu uma decisão técnica para manter a rastreabilidade sem preenchimento artificial.
+
+O MVP demonstrou o ciclo completo de coleta, armazenamento, transformação, validação e análise na nuvem. Como evolução, podem ser ampliados o histórico, a automação de atualização, a integração com dados cadastrais e o acompanhamento contínuo das exceções.
+
+## 18. Referências
 
 - CVM — Fundos de Investimento: Documentos: Informe Diário: https://dados.cvm.gov.br/dataset/fi-doc-inf_diario
 - CVM — Fundos de Investimento: Informação Cadastral: https://dados.cvm.gov.br/dataset/fi-cad
