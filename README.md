@@ -107,35 +107,81 @@ Aqui os resultados são reunidos por fundo/classe para facilitar a resposta às 
 
 ## 7. Indicadores
 
-### Fluxo líquido diário
+Os indicadores foram criados para observar o comportamento de captações, resgates e fluxo de recursos dos fundos durante o período analisado.
 
-`fluxo_liquido = CAPTC_DIA - RESG_DIA`
+### Fluxo líquido
 
-### Taxa diária de resgate sobre PL
+O fluxo líquido mostra se, em determinado dia, entrou ou saiu mais dinheiro do fundo.
 
-`taxa_resgate_pl = RESG_DIA / VL_PATRIM_LIQ`
+```
+fluxo_liquido = CAPTC_DIA - RESG_DIA
+```
 
-### Taxa diária de fluxo líquido sobre PL
+Quando o resultado é positivo, as captações foram maiores que os resgates. Quando é negativo, os resgates foram maiores que as captações, indicando uma saída líquida de recursos naquele dia.
 
-`taxa_fluxo_liquido_pl = (CAPTC_DIA - RESG_DIA) / VL_PATRIM_LIQ`
+### Taxa de resgate sobre o PL
 
-### Taxa de resgate sobre PL do dia anterior
+Essa taxa mostra o tamanho dos resgates de um dia em relação ao patrimônio líquido do fundo naquele mesmo dia.
 
-`taxa_resgate_sobre_pl_anterior = RESG_DIA / VL_PATRIM_LIQ_D1`
+```
+taxa_resgate_pl = RESG_DIA / VL_PATRIM_LIQ
+```
 
-O uso do PL do dia anterior permite analisar o volume de resgate em relação à base patrimonial observada antes do evento.
+Por exemplo, um resultado de 0,05 representa resgates equivalentes a aproximadamente 5% do PL daquele dia. Esse indicador ajuda a comparar o tamanho dos resgates entre fundos de diferentes tamanhos.
 
-### Evento extremo pelo P95
+### Taxa de fluxo líquido sobre o PL
 
-Para identificar situações mais fora do padrão da amostra, calculei o percentil 95 (P95) da taxa de resgate sobre o PL do dia anterior. Os registros acima desse valor são marcados como eventos extremos.
+Esse indicador relaciona o fluxo líquido do dia com o patrimônio líquido do fundo.
 
-O P95 foi criado apenas para esta análise e não representa um limite ou regra da CVM.
+```
+taxa_fluxo_liquido_pl = (CAPTC_DIA - RESG_DIA) / VL_PATRIM_LIQ
+```
 
-### Indicador acumulado de P1
+O resultado mostra o tamanho da entrada ou saída líquida em relação ao PL. Valores negativos representam saída líquida e valores positivos representam entrada líquida.
 
-`taxa_resgate_acumulada_rel_pl_medio`
+### Taxa de resgate sobre o PL do dia anterior
 
-Mostra a relação entre os resgates acumulados no período e o PL médio observado. Como é um valor acumulado, ele não significa que esse percentual tenha sido resgatado em um único dia.
+Esse indicador compara o valor resgatado no dia com o patrimônio líquido informado no dia anterior.
+
+```
+taxa_resgate_sobre_pl_anterior = RESG_DIA / VL_PATRIM_LIQ_D1
+```
+
+A comparação com o PL anterior ajuda a observar o tamanho do resgate em relação à base patrimonial existente antes do movimento daquele dia. Quando não existe PL válido no dia anterior, o indicador não é calculado.
+
+### P95 da taxa de resgate
+
+O P95 foi usado como uma referência estatística para identificar valores muito altos dentro da própria amostra analisada.
+
+Na prática, o P95 representa um valor abaixo do qual ficam aproximadamente 95% das observações válidas. Os casos acima desse valor foram marcados no campo `evento_extremo_p95`.
+
+O P95 encontrado na amostra foi de aproximadamente 0,43%. Isso significa que valores acima desse nível foram considerados extremos em relação à distribuição observada no período analisado.
+
+Esse indicador é uma referência estatística criada para o MVP. Ele não representa um limite regulatório da CVM e não deve ser interpretado, isoladamente, como uma classificação de risco do fundo.
+
+### Índice de resgates acumulados sobre o PL médio
+
+Para a análise P1, foi usado o total de resgates do período dividido pelo PL médio do fundo.
+
+```
+taxa_resgate_acumulada_rel_pl_medio = RESGATES_PERIODO / PL_MEDIO
+```
+
+Esse indicador mostra o tamanho dos resgates acumulados ao longo do período em relação ao PL médio observado. Como os resgates são somados em vários dias, o resultado pode ser maior que 1 e até muito maior que 1.
+
+Por isso, um resultado de 0,10 significa que os resgates acumulados equivalem a 10% do PL médio, enquanto um resultado de 46,31 significa que o total de resgates acumulados foi 46,31 vezes o PL médio do período. Isso não significa que o fundo tenha perdido 46 vezes o seu patrimônio em um único resgate.
+
+### Proporção de dias com fluxo líquido negativo
+
+Na análise P2, foi calculada a proporção de dias válidos em que o fluxo líquido foi negativo.
+
+```
+proporcao_dias_fluxo_negativo = dias_fluxo_negativo / dias_validos
+```
+
+Esse indicador mostra com que frequência o fundo apresentou saída líquida de recursos durante o período. Uma proporção de 100% significa que, em todos os dias válidos considerados, os resgates foram maiores que as captações.
+
+Os indicadores foram usados em conjunto para responder às perguntas do MVP e observar diferentes aspectos do comportamento de liquidez. Eles são medidas descritivas e estatísticas da amostra analisada, e não representam uma classificação regulatória de risco.
 
 ## 8. Qualidade dos dados
 
