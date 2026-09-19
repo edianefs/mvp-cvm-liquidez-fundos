@@ -29,7 +29,7 @@ O conjunto **Fundos de Investimento: Documentos: Informe Diário** está disponi
 
 ## 3. Contexto de Negócios e Perguntas
 
-O MVP busca transformar os registros diários da CVM em indicadores reproduzíveis para apoiar a identificação de eventos que mereçam investigação no contexto de monitoramento de liquidez.
+Neste MVP, busco transformar os registros diários da CVM em indicadores que possam apoiar, de forma prática, o monitoramento de liquidez de fundos de investimento no contexto de uma corretora de valores.
 
 ### Problema
 
