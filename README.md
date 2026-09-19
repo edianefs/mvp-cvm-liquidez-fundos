@@ -2,21 +2,21 @@
 
 ## 1. Objetivo
 
-Este MVP demonstra a construção de um pipeline de dados ponta a ponta para apoiar o **monitoramento analítico de liquidez em fundos de investimento**, utilizando dados públicos da Comissão de Valores Mobiliários (CVM).
+Este MVP demonstra a construção de um pipeline de dados ponta a ponta para apoiar o monitoramento analítico de liquidez em fundos de investimento, utilizando dados públicos da Comissão de Valores Mobiliários (CVM).
 
 O projeto foi desenvolvido em Databricks, com processamento em PySpark e armazenamento em tabelas Delta no Unity Catalog. O código é versionado no GitHub.
 
-Os indicadores produzidos são **descritivos e analíticos**. Eles servem como sinais para investigação e monitoramento e não constituem classificação regulatória de risco, recomendação de investimento ou substituição de metodologias e controles institucionais.
+Os indicadores produzidos são descritivos e analíticos. Eles servem como sinais para investigação e monitoramento e não constituem classificação regulatória de risco, recomendação de investimento ou substituição de metodologias e controles institucionais.
 
 ## 2. Fonte dos dados
 
-A fonte principal é o conjunto **Fundos de Investimento: Documentos: Informe Diário**, do Portal Dados Abertos da CVM:
+A fonte principal é o conjunto Fundos de Investimento: Documentos: Informe Diário, do Portal Dados Abertos da CVM:
 
 https://dados.cvm.gov.br/dataset/fi-doc-inf_diario
 
 O Informe Diário contém, entre outras informações, patrimônio líquido, valor da cota, captações, resgates e número de cotistas.
 
-A amostra utilizada no MVP compreende os meses completos de **julho/2026 e agosto/2026**:
+A amostra utilizada no MVP compreende os meses completos de julho/2026 e agosto/2026:
 
 - `inf_diario_fi_202607.zip`
 - `inf_diario_fi_202608.zip`
@@ -24,7 +24,7 @@ A amostra utilizada no MVP compreende os meses completos de **julho/2026 e agost
 Os arquivos de origem não são versionados no GitHub. O código do pipeline e as evidências da execução são versionados.
 ### Licença e contexto da fonte
 
-O conjunto **Fundos de Investimento: Documentos: Informe Diário** está disponibilizado no Portal Dados Abertos da CVM sob a **Licença Aberta para Bases de Dados (ODbL) do Open Data Commons**. A página da CVM também disponibiliza o dicionário de dados do conjunto e informa que os dados são disponibilizados em CSV compactado (ZIP).
+O conjunto Fundos de Investimento: Documentos: Informe Diário está disponibilizado no Portal Dados Abertos da CVM sob a Licença Aberta para Bases de Dados (ODbL) do Open Data Commons. A página da CVM também disponibiliza o dicionário de dados do conjunto e informa que os dados são disponibilizados em CSV compactado (ZIP).
 
 
 ## 3. Contexto de Negócios e Perguntas
@@ -33,7 +33,7 @@ Neste MVP, busco transformar os registros diários da CVM em indicadores que pos
 
 ### Problema
 
-**Como transformar os dados públicos do Informe Diário da CVM em indicadores simples e reproduzíveis que permitam priorizar a análise de eventos de liquidez em fundos de investimento?**
+Como transformar os dados públicos do Informe Diário da CVM em indicadores simples e reproduzíveis que permitam priorizar a análise de eventos de liquidez em fundos de investimento?
 
 ### Perguntas
 
@@ -46,7 +46,7 @@ Neste MVP, busco transformar os registros diários da CVM em indicadores que pos
 
 ## 4. Carga dos dados
 
-A carga foi realizada no **Databricks Free Edition**, utilizando um Volume do Unity Catalog como área de armazenamento dos arquivos de origem.
+A carga foi realizada no Databricks Free Edition, utilizando um Volume do Unity Catalog como área de armazenamento dos arquivos de origem.
 
 O fluxo foi:
 
@@ -136,7 +136,7 @@ O uso do PL do dia anterior permite analisar o volume de resgate em relação à
 
 O percentil 95 da distribuição amostral de `taxa_resgate_sobre_pl_anterior` é calculado sobre os registros válidos. Observações acima desse ponto recebem `evento_extremo_p95 = 1`.
 
-O P95 é um **critério estatístico construído para este MVP** e não representa limite, regra ou parâmetro regulatório da CVM.
+O P95 é um critério estatístico construído para este MVP e não representa limite, regra ou parâmetro regulatório da CVM.
 
 ### Indicador acumulado de P1
 
@@ -156,14 +156,14 @@ A qualidade foi verificada antes da análise final, contemplando:
 
 ### Resultados observados
 
-- Bronze: **1.119.386 linhas**
-- Silver: **1.119.383 linhas**
-- Gold diária: **1.119.383 linhas**
-- Gold resumo: **26.077 linhas**
-- Período analisado: **01/07/2026 a 31/08/2026**
-- Registros não válidos para os indicadores principais: **4.720**
-- Chaves duplicadas identificadas no Bronze: **3**
-- Eventos acima do P95: **54.476**
+- Bronze: 1.119.386 linhas
+- Silver: 1.119.383 linhas
+- Gold diária: 1.119.383 linhas
+- Gold resumo: 26.077 linhas
+- Período analisado: 01/07/2026 a 31/08/2026
+- Registros não válidos para os indicadores principais: 4.720
+- Chaves duplicadas identificadas no Bronze: 3
+- Eventos acima do P95: 54.476
 
 A diferença de três linhas entre Bronze e Silver corresponde às duplicidades removidas pela regra de deduplicação.
 
@@ -185,11 +185,11 @@ Os resultados identificam fundos com recorrência de dias em que:
 
 `CAPTC_DIA - RESG_DIA < 0`
 
-Na primeira posição da tabela, há fundos com **44 dias válidos e 44 dias de fluxo líquido negativo**, correspondendo a 100% dos dias considerados para aquele fundo. A métrica descreve recorrência de saída líquida no período e, isoladamente, não caracteriza situação regulatória.
+Na primeira posição da tabela, há fundos com 44 dias válidos e 44 dias de fluxo líquido negativo, correspondendo a 100% dos dias considerados para aquele fundo. A métrica descreve recorrência de saída líquida no período e, isoladamente, não caracteriza situação regulatória.
 
 ### P3 — Eventos acima do P95
 
-O P95 calculado na amostra foi aproximadamente **0,43%**.
+O P95 calculado na amostra foi aproximadamente 0,43%.
 
 Os resultados de P3 identificam fundos que apresentaram maior quantidade de observações acima desse ponto estatístico. Trata-se de uma classificação relativa à distribuição observada nos dados do MVP, sem interpretação como limite regulatório.
 
