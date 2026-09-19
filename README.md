@@ -16,6 +16,23 @@ https://dados.cvm.gov.br/dataset/fi-doc-inf_diario
 
 O Informe Diário contém, entre outras informações, patrimônio líquido, valor da cota, captações, resgates e número de cotistas.
 
+A estrutura dos dados brutos utilizada neste MVP é composta por registros diários de fundos/classes, com os principais campos abaixo:
+
+| Campo bruto | Conteúdo |
+|---|---|
+| `TP_FUNDO_CLASSE` | Tipo do fundo/classe |
+| `CNPJ_FUNDO_CLASSE` | Identificador público do fundo/classe |
+| `ID_SUBCLASSE` | Identificador da subclasse, quando informado |
+| `DT_COMPTC` | Data de competência |
+| `VL_TOTAL` | Valor total da carteira |
+| `VL_QUOTA` | Valor da cota |
+| `VL_PATRIM_LIQ` | Patrimônio líquido |
+| `CAPTC_DIA` | Captação do dia |
+| `RESG_DIA` | Resgate do dia |
+| `NR_COTST` | Número de cotistas |
+
+Os arquivos brutos utilizados são os dois ZIPs mensais informados acima. Cada arquivo contém os registros diários da competência correspondente.
+
 A amostra utilizada no MVP compreende os meses completos de julho/2026 e agosto/2026:
 
 - `inf_diario_fi_202607.zip`
@@ -69,11 +86,93 @@ Para organizar o projeto, os dados foram separados em etapas, seguindo a estrutu
 | Gold diária | `workspace.cvm_liquidez.gold_indicadores_liquidez_diarios` | Calcular os indicadores diários e identificar valores acima do P95 |
 | Gold resumo | `workspace.cvm_liquidez.gold_resumo_liquidez_fundo` | Juntar os resultados por fundo/classe e período |
 
-O catálogo de dados está registrado em `sql/catalogo.sql` e também foi documentado por meio do screenshot disponível em `docs/imagens/evidencias do catalogo - modelagem e catalogo de dados.PNG`.
+### Catálogo de dados
 
-O dicionário da fonte contempla informações como tipo de fundo/classe, identificador, subclasse, data de competência, valor total da carteira, patrimônio líquido, valor da cota, captações, resgates e número de cotistas.
+O catálogo completo também está registrado em `sql/catalogo.sql`. Abaixo está o resumo dos campos utilizados, com tipo lógico, finalidade e origem principal.
 
-De forma resumida, os dados passam pelos seguintes passos: os arquivos da CVM entram na Bronze; depois são organizados e validados na Silver; na Gold são calculados os indicadores; e, por fim, os resultados são reunidos por fundo. Essas etapas estão descritas no `sql/catalogo.sql`.
+#### Bronze — dados recebidos
+
+| Campo | Tipo lógico | Descrição / origem |
+|---|---|---|
+| `TP_FUNDO_CLASSE` | string | Tipo do fundo/classe; origem CVM |
+| `CNPJ_FUNDO_CLASSE` | string | Identificador público da classe/fundo; origem CVM |
+| `ID_SUBCLASSE` | string / nulo | Identificador da subclasse, quando aplicável; origem CVM |
+| `DT_COMPTC` | date | Data de competência; origem CVM |
+| `VL_TOTAL` | double | Valor total da carteira; origem CVM |
+| `VL_QUOTA` | double | Valor da cota; origem CVM |
+| `VL_PATRIM_LIQ` | double | Patrimônio líquido; origem CVM |
+| `CAPTC_DIA` | double | Captação do dia; origem CVM |
+| `RESG_DIA` | double | Resgate do dia; origem CVM |
+| `NR_COTST` | long | Número de cotistas; origem CVM |
+| `_source_file` | string | Arquivo de origem identificado na ingestão |
+| `_ingestion_ts` | timestamp | Momento da ingestão |
+
+#### Silver — dados preparados
+
+A Silver mantém os campos da Bronze utilizados no projeto e acrescenta campos para controle de qualidade.
+
+| Campo | Tipo lógico | Descrição / regra |
+|---|---|---|
+| `TP_FUNDO_CLASSE` | string | Tipo do fundo/classe |
+| `CNPJ_FUNDO_CLASSE` | string | Identificador público da classe/fundo |
+| `ID_SUBCLASSE` | string / nulo | Identificador da subclasse |
+| `DT_COMPTC` | date | Data de competência |
+| `VL_TOTAL` | double | Valor total da carteira |
+| `VL_QUOTA` | double | Valor da cota |
+| `VL_PATRIM_LIQ` | double | PL; para a base válida, deve ser maior que zero |
+| `CAPTC_DIA` | double | Captação diária |
+| `RESG_DIA` | double | Resgate diário |
+| `NR_COTST` | long | Número de cotistas |
+| `_source_file` | string | Arquivo de origem |
+| `_ingestion_ts` | timestamp | Momento da ingestão |
+| `ID_SUBCLASSE_CHAVE` | string | Usa a subclasse ou `__SEM_SUBCLASSE__` quando nula |
+| `has_duplicate_key` | boolean | Indica duplicidade da chave CNPJ + subclasse + data |
+| `is_valid_base` | boolean | Indica CNPJ, data e PL preenchidos e PL maior que zero |
+
+#### Gold diária — indicadores
+
+| Campo | Tipo lógico | Descrição / origem |
+|---|---|---|
+| `CNPJ_FUNDO_CLASSE` | string | Identificador; Silver |
+| `TP_FUNDO_CLASSE` | string | Tipo do fundo/classe; Silver |
+| `ID_SUBCLASSE` | string / nulo | Subclasse; Silver |
+| `ID_SUBCLASSE_CHAVE` | string | Chave técnica; Silver |
+| `DT_COMPTC` | date | Data de competência; Silver |
+| `VL_PATRIM_LIQ` | double | PL do dia; Silver |
+| `CAPTC_DIA` | double | Captação do dia; Silver |
+| `RESG_DIA` | double | Resgate do dia; Silver |
+| `NR_COTST` | long | Número de cotistas; Silver |
+| `fluxo_liquido` | double | Captações menos resgates |
+| `taxa_resgate_pl` | double | Resgates do dia / PL do próprio dia |
+| `taxa_fluxo_liquido_pl` | double | Fluxo líquido / PL do próprio dia |
+| `vl_patrim_liq_d1` | double | PL do registro anterior |
+| `taxa_resgate_sobre_pl_anterior` | double | Resgates / PL do dia anterior |
+| `variacao_pl_d1` | double | Variação relativa do PL contra o dia anterior |
+| `p95_amostra_taxa_resgate` | double | Percentil 95 da taxa de resgate sobre PL anterior |
+| `evento_extremo_p95` | integer | 1 quando a taxa supera o P95; 0 nos demais casos |
+| `is_valid_base` | boolean | Flag de validade herdada da Silver |
+
+#### Gold resumo — consolidação
+
+| Campo | Tipo lógico | Descrição |
+|---|---|---|
+| `CNPJ_FUNDO_CLASSE` | string | Identificador público da classe/fundo |
+| `ID_SUBCLASSE` | string / nulo | Identificador da subclasse |
+| `dias_validos` | long | Quantidade de dias válidos |
+| `data_inicial` | date | Primeira data válida |
+| `data_final` | date | Última data válida |
+| `pl_medio` | double | PL médio no período |
+| `captacoes_periodo` | double | Soma das captações |
+| `resgates_periodo` | double | Soma dos resgates |
+| `fluxo_liquido_periodo` | double | Soma do fluxo líquido |
+| `dias_fluxo_negativo` | long | Dias com fluxo líquido negativo |
+| `qtd_eventos_extremos_p95` | long | Quantidade de eventos acima do P95 |
+| `taxa_resgate_acumulada_rel_pl_medio` | double | Resgates acumulados / PL médio |
+| `proporcao_dias_fluxo_negativo` | double | Proporção de dias com fluxo líquido negativo |
+
+O catálogo também está registrado no arquivo `sql/catalogo.sql` e foi documentado por meio do screenshot disponível em `docs/imagens/evidencias do catalogo - modelagem e catalogo de dados.PNG`.
+
+A linhagem utilizada é: dados CSV da CVM → Bronze → Silver → Gold diária → Gold resumo. Os campos calculados da Gold são derivados dos dados preparados na Silver.
 
 ## 6. Pipeline de Dados e Arquitetura
 
@@ -261,6 +360,12 @@ Os resultados foram:
 - número de cotistas negativo: 0.
 
 Os 1.383 registros com patrimônio líquido negativo foram identificados na verificação de qualidade e permanecem na base. Como não foi definida uma regra para excluir ou alterar esses registros, o valor original é preservado.
+
+### Consistência e acurácia
+
+Também foi verificado se os campos utilizados no pipeline correspondiam ao layout efetivamente recebido da CVM. Um exemplo foi a correção da referência `TP_FUNDO` para `TP_FUNDO_CLASSE`, evitando que uma coluna inexistente fosse usada na Silver. As consultas de qualidade também foram usadas para conferir se os valores extremos já estavam presentes na camada Bronze antes das transformações.
+
+A acurácia de negócio dos valores não foi validada contra uma segunda fonte independente, pois o MVP utiliza a própria base pública da CVM como fonte principal. Por isso, os resultados são apresentados como uma análise dos dados disponíveis, com suas limitações.
 
 ### Registros inválidos para os indicadores principais
 
