@@ -193,7 +193,7 @@ A primeira posição da tabela, assim como os demais fundos destacados no result
 
 `CAPTC_DIA - RESG_DIA < 0`
 
-Como consequência, o fluxo líquido acumulado no período também é negativo. Por exemplo, entre os fundos destacados na tabela, o CNPJ `41.575.707/0001-03` apresentou fluxo líquido acumulado de aproximadamente **-R$ 1,03 bilhão**.
+Como consequência, o fluxo líquido acumulado no período também é negativo. Por exemplo, entre os fundos destacados na tabela, o CNPJ `41.575.707/0001-03` apresentou fluxo líquido acumulado de aproximadamente -R$ 1,03 bilhão.
 
 Assim, a resposta à P2 é que existem fundos com **recorrência diária de saída líquida durante todo o período válido analisado**. Essa métrica descreve o comportamento observado nos dados e, isoladamente, não caracteriza situação regulatória ou conclusão definitiva sobre risco de liquidez.
 
@@ -201,11 +201,11 @@ Assim, a resposta à P2 é que existem fundos com **recorrência diária de saí
 
 **Resposta à P3:** os fundos que aparecem no topo da tabela foram os que concentraram a maior quantidade de eventos de resgate acima do P95 da amostra.
 
-O P95 calculado para a taxa de resgate sobre o PL do dia anterior foi de aproximadamente **0,43%**. Os fundos destacados na tabela apresentaram **43 eventos extremos em 43 dias com denominador válido**, resultando em **100% dos dias válidos com taxa acima do P95** para esses casos.
+O P95 calculado para a taxa de resgate sobre o PL do dia anterior foi de aproximadamente 0,43%. Os fundos destacados na tabela apresentaram 43 eventos extremos em 43 dias com denominador válido, resultando em 100% dos dias válidos com taxa acima do P95 para esses casos.
 
 Portanto, a resposta à P3 é que os fundos destacados apresentaram uma frequência elevada de eventos classificados como extremos em relação à distribuição observada na própria amostra. Entre os CNPJs que aparecem no resultado estão `05.943.661/0001-74` e `05.114.716/0001-33`.
 
-Esse resultado é uma **classificação estatística relativa à amostra do MVP**. O P95 não representa um limite regulatório da CVM nem, isoladamente, permite concluir que um fundo esteja em situação de risco de liquidez.
+Esse resultado é uma classificação estatística relativa à amostra do MVP. O P95 não representa um limite regulatório da CVM nem, isoladamente, permite concluir que um fundo esteja em situação de risco de liquidez.
 
 ## 10. Exemplo de série temporal
 
