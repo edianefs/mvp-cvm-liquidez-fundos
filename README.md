@@ -31,7 +31,7 @@ A estrutura dos dados brutos utilizada neste MVP é composta por registros diár
 | `RESG_DIA` | Resgate do dia |
 | `NR_COTST` | Número de cotistas |
 
-Os arquivos brutos utilizados são os dois ZIPs mensais informados acima. Cada arquivo contém os registros diários da competência correspondente.
+Os arquivos brutos utilizados são os dois ZIPs mensais informados acima. Cada arquivo contém registros diários de fundos/classes para a competência correspondente. No pipeline, esses registros são carregados inicialmente em uma única tabela Bronze, a partir da qual são criadas as tabelas Silver e Gold.
 
 A amostra utilizada no MVP compreende os meses completos de julho/2026 e agosto/2026:
 
@@ -88,7 +88,7 @@ Para organizar o projeto, os dados foram separados em etapas, seguindo a estrutu
 
 ### Catálogo de dados
 
-O catálogo completo também está registrado em `sql/catalogo.sql`. Abaixo está o resumo dos campos utilizados, com tipo lógico, finalidade e origem principal.
+O catálogo completo também está registrado em `sql/catalogo.sql`. Abaixo está a documentação dos campos utilizados, com tipo lógico, finalidade, domínio/regra e origem principal. Para campos numéricos, o domínio é tratado conforme a natureza do campo e as regras de validade do pipeline; não foi definido um limite máximo artificial quando a própria fonte não estabelece esse limite. Para campos categóricos, são consideradas as categorias disponibilizadas pela CVM.
 
 #### Bronze — dados recebidos
 
@@ -106,6 +106,8 @@ O catálogo completo também está registrado em `sql/catalogo.sql`. Abaixo est�
 | `NR_COTST` | long | Número de cotistas; origem CVM |
 | `_source_file` | string | Arquivo de origem identificado na ingestão |
 | `_ingestion_ts` | timestamp | Momento da ingestão |
+
+Domínio e regras principais: identificadores e textos seguem o formato da fonte CVM; `DT_COMPTC` é uma data de competência; campos monetários são numéricos e podem conter valores que precisam ser analisados na etapa de qualidade; `NR_COTST` é numérico e não deve ser negativo; os campos `_source_file` e `_ingestion_ts` são metadados de ingestão.
 
 #### Silver — dados preparados
 
@@ -128,6 +130,8 @@ A Silver mantém os campos da Bronze utilizados no projeto e acrescenta campos p
 | `ID_SUBCLASSE_CHAVE` | string | Usa a subclasse ou `__SEM_SUBCLASSE__` quando nula |
 | `has_duplicate_key` | boolean | Indica duplicidade da chave CNPJ + subclasse + data |
 | `is_valid_base` | boolean | Indica CNPJ, data e PL preenchidos e PL maior que zero |
+
+Domínio e regras principais: `CNPJ_FUNDO_CLASSE` e `DT_COMPTC` devem estar preenchidos para a base válida; `VL_PATRIM_LIQ` deve ser maior que zero para os principais cálculos; `ID_SUBCLASSE_CHAVE` recebe o identificador original ou `__SEM_SUBCLASSE__`; as flags são booleanas.
 
 #### Gold diária — indicadores
 
@@ -152,6 +156,8 @@ A Silver mantém os campos da Bronze utilizados no projeto e acrescenta campos p
 | `evento_extremo_p95` | integer | 1 quando a taxa supera o P95; 0 nos demais casos |
 | `is_valid_base` | boolean | Flag de validade herdada da Silver |
 
+Domínio e regras principais: `fluxo_liquido` e as taxas são calculados numericamente a partir dos campos de origem; taxas dependentes de PL válido não são calculadas quando o denominador não é válido; `evento_extremo_p95` assume 1 para valores acima do P95 e 0 nos demais casos.
+
 #### Gold resumo — consolidação
 
 | Campo | Tipo lógico | Descrição |
@@ -170,11 +176,15 @@ A Silver mantém os campos da Bronze utilizados no projeto e acrescenta campos p
 | `taxa_resgate_acumulada_rel_pl_medio` | double | Resgates acumulados / PL médio |
 | `proporcao_dias_fluxo_negativo` | double | Proporção de dias com fluxo líquido negativo |
 
+Domínio e regras principais: `dias_validos`, `dias_fluxo_negativo` e `qtd_eventos_extremos_p95` são contagens não negativas; `proporcao_dias_fluxo_negativo` varia de 0 a 1; `pl_medio` é calculado sobre a base válida; `taxa_resgate_acumulada_rel_pl_medio` é uma razão acumulada e pode ser maior que 1.
+
 O catálogo também está registrado no arquivo `sql/catalogo.sql` e foi documentado por meio do screenshot disponível em `docs/imagens/evidencias do catalogo - modelagem e catalogo de dados.PNG`.
 
 A linhagem utilizada é: dados CSV da CVM → Bronze → Silver → Gold diária → Gold resumo. Os campos calculados da Gold são derivados dos dados preparados na Silver.
 
 ## 6. Pipeline de Dados e Arquitetura
+
+O pipeline foi organizado em três notebooks, com responsabilidades separadas: o `01_pipeline_cvm_liquidez.py` concentra a ingestão e as transformações Bronze → Silver → Gold; o `02_qualidade_cvm_liquidez.py` faz as verificações de qualidade; e o `03_analise_cvm_liquidez.py` responde às perguntas P1, P2 e P3. Assim, a parte principal do ETL ficou em um notebook, enquanto qualidade e análise foram mantidas em notebooks próprios.
 
 O pipeline organiza os dados em etapas, desde o arquivo público da CVM até as tabelas utilizadas na análise.
 
@@ -234,6 +244,18 @@ A organização em Bronze, Silver e Gold permite acompanhar a transformação do
 - Gold resumo: resultados consolidados para a análise.
 
 Dessa forma, o projeto mantém uma sequência clara entre origem, tratamento, cálculo e análise dos dados.
+
+### Evidências da persistência na nuvem
+
+As tabelas das camadas foram gravadas no Databricks em formato Delta. As evidências abaixo mostram a persistência das principais etapas do pipeline:
+
+![Tabela Bronze persistida no Databricks](docs/imagens/p1c4%20-%20somente%20tabela%20bronze%20-%20modelagem%20e%20ou%20pipeline%20de%20dados.PNG)
+
+![Tabela Silver persistida no Databricks](docs/imagens/p1c5%20-%20silvergravada%20%2B%20tabela%20silver%20-%20tipagem%20e%20qualidade%20basica%20.PNG)
+
+![Tabela Gold diária persistida no Databricks](docs/imagens/p1c6%20-%20percentil%2095%20e%20tabela%20gold.PNG)
+
+![Tabela Gold resumo persistida no Databricks](docs/imagens/p1c7%20-%20resumo%20da%20gold.PNG)
 
 ## 7. Indicadores
 
@@ -323,7 +345,7 @@ As verificações foram feitas nas tabelas do pipeline e os resultados foram com
 
 Foi verificado se os principais campos usados nos indicadores estavam preenchidos.
 
-Na Silver, foram analisados o CNPJ da classe, o identificador da subclasse, a data, o patrimônio líquido, as captações e os resgates.
+Na Silver, foram analisados os atributos usados no pipeline: CNPJ da classe, identificador da subclasse, data, patrimônio líquido, captações, resgates e número de cotistas. Também foram considerados os metadados de origem e ingestão e, nas camadas derivadas, os campos calculados e flags de controle.
 
 Os resultados foram:
 
@@ -365,7 +387,7 @@ Os 1.383 registros com patrimônio líquido negativo foram identificados na veri
 
 Também foi verificado se os campos utilizados no pipeline correspondiam ao layout efetivamente recebido da CVM. Um exemplo foi a correção da referência `TP_FUNDO` para `TP_FUNDO_CLASSE`, evitando que uma coluna inexistente fosse usada na Silver. As consultas de qualidade também foram usadas para conferir se os valores extremos já estavam presentes na camada Bronze antes das transformações.
 
-A acurácia de negócio dos valores não foi validada contra uma segunda fonte independente, pois o MVP utiliza a própria base pública da CVM como fonte principal. Por isso, os resultados são apresentados como uma análise dos dados disponíveis, com suas limitações.
+A acurácia de negócio dos valores não foi validada contra uma segunda fonte independente, pois o MVP utiliza a própria base pública da CVM como fonte principal. Como verificação possível dentro do escopo, foram conferidos o alinhamento com o layout da fonte, a presença dos valores extremos já na Bronze e as regras de validade usadas nos cálculos. Por isso, os resultados são apresentados como uma análise dos dados disponíveis, com suas limitações.
 
 ### Registros inválidos para os indicadores principais
 
@@ -490,6 +512,14 @@ As principais evidências visuais estão organizadas em `docs/imagens/`.
 
 ![Completude da Silver](docs/imagens/p2c12_%20completude%20silver.PNG)
 
+![Duplicidades na Bronze](docs/imagens/p2c2%20_%20chaves%20duplicadas%20bronze.PNG)
+
+![Valores negativos](docs/imagens/p2c3%20-%20consistencia%20_%20valores%20negativos%20que%20deveriam%20ser%20nao%20negativos.PNG)
+
+![Registros inválidos](docs/imagens/p2c4%20-%20registros%20nao%20validos%20para%20os%20indicadores%20principais.PNG)
+
+![Valores extremos](docs/imagens/p2c5%20-%20maiores%20taxas%20de%20resgate%20sobre%20o%20PL%20anterior.PNG)
+
 ### P1
 
 ![Resultado P1](docs/imagens/p3c1%20-%20p1.PNG)
@@ -560,6 +590,8 @@ Considero que o principal resultado deste MVP foi ter conseguido acompanhar todo
 Além do aprendizado técnico, vejo uma relação com minha experiência profissional. Trabalho com compliance, controles internos e risco, áreas em que organizar informações e identificar situações fora do esperado é importante. Por isso, acredito que o que aprendi neste MVP pode ser útil tanto para esta disciplina quanto para meu desenvolvimento profissional.
 
 ## 18. Referências
+
+A entrega utiliza README e screenshots como documentação e evidência da execução. Não foram utilizados vídeos ou áudios.
 
 - CVM — Fundos de Investimento: Documentos: Informe Diário: https://dados.cvm.gov.br/dataset/fi-doc-inf_diario
 - CVM — Fundos de Investimento: Informação Cadastral: https://dados.cvm.gov.br/dataset/fi-cad
