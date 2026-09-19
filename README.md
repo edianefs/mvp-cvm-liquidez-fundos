@@ -77,33 +77,64 @@ De forma resumida, os dados passam pelos seguintes passos: os arquivos da CVM en
 
 ## 6. Pipeline de Dados e Arquitetura
 
+O pipeline organiza os dados em etapas, desde o arquivo público da CVM até as tabelas utilizadas na análise.
+
 O fluxo utilizado foi:
 
 `dados públicos CVM → Bronze → Silver → Gold diária → Gold resumo → análise`
+
+Cada camada tem uma função diferente no tratamento dos dados.
 
 ### Bronze
 
 `bronze_informe_diario`
 
-Guarda os dados recebidos e registra informações sobre o arquivo de origem.
+A Bronze é a primeira tabela do pipeline. Ela recebe os dados dos arquivos CSV da CVM e mantém os campos da origem utilizados no projeto.
+
+Além dos dados recebidos, são registradas informações sobre o arquivo de origem e o momento da ingestão. Essa camada serve como referência para comparar o que foi recebido com o que foi transformado nas etapas seguintes.
 
 ### Silver
 
 `silver_informe_diario`
 
-Nesta etapa, organizei os tipos dos campos, tratei a ausência de `ID_SUBCLASSE`, verifiquei duplicidades, retirei as duplicidades identificadas e marquei os registros que poderiam ser usados nos principais cálculos.
+A Silver é a camada de organização e preparação dos dados para os cálculos.
+
+Nela, os campos utilizados no projeto recebem seus tipos corretos. Também são criadas a `ID_SUBCLASSE_CHAVE` e as marcações `has_duplicate_key` e `is_valid_base`.
+
+As duplicidades identificadas são tratadas nessa etapa. A Silver também mantém os registros que não atendem aos critérios de validade, permitindo que eles sejam identificados sem serem confundidos com registros válidos para os indicadores.
 
 ### Gold diária
 
 `gold_indicadores_liquidez_diarios`
 
-Nesta etapa, foram calculados os indicadores diários, incluindo fluxo líquido, taxas de resgate, patrimônio líquido do dia anterior e identificação de eventos acima do P95 da amostra.
+A Gold diária transforma os dados preparados na Silver em indicadores de liquidez calculados para cada dia.
+
+Nessa etapa são calculados o fluxo líquido, as taxas de resgate e de fluxo em relação ao patrimônio líquido, o patrimônio líquido do dia anterior e a variação do PL.
+
+Também é calculado o P95 da taxa de resgate na amostra e criado o campo `evento_extremo_p95`, usado para identificar os valores acima desse ponto de referência.
+
+Essa tabela é a base das análises que dependem do comportamento diário dos fundos.
 
 ### Gold resumo
 
 `gold_resumo_liquidez_fundo`
 
-Aqui os resultados são reunidos por fundo/classe para facilitar a resposta às perguntas P1, P2 e P3.
+A Gold resumo reúne os resultados por fundo/classe e período, em vez de manter uma linha para cada dia.
+
+Ela consolida informações como quantidade de dias válidos, período analisado, PL médio, captações, resgates, fluxo líquido, quantidade de dias com fluxo negativo e quantidade de eventos acima do P95.
+
+A partir desses dados consolidados são calculados os indicadores usados nas perguntas P1 e P2. A tabela também facilita a comparação entre os fundos e a apresentação dos resultados na etapa de análise.
+
+### Relação entre as camadas
+
+A organização em Bronze, Silver e Gold permite acompanhar a transformação dos dados ao longo do pipeline:
+
+- Bronze: dados recebidos da fonte;
+- Silver: dados organizados e preparados para os cálculos;
+- Gold diária: indicadores calculados por dia;
+- Gold resumo: resultados consolidados para a análise.
+
+Dessa forma, o projeto mantém uma sequência clara entre origem, tratamento, cálculo e análise dos dados.
 
 ## 7. Indicadores
 
@@ -185,15 +216,15 @@ Os indicadores foram usados em conjunto para responder às perguntas do MVP e ob
 
 ## 8. Qualidade dos dados
 
-A etapa de qualidade foi usada para verificar se os dados carregados estavam completos, se havia registros duplicados ou inválidos e se existiam valores que poderiam distorcer os indicadores.
+A etapa de qualidade foi usada para verificar se os dados carregados estavam completos, se havia registros duplicados ou inválidos e se existiam valores que poderiam afetar os indicadores.
 
-As verificações foram realizadas antes e depois das transformações do pipeline. Quando foi identificado um problema que afetava os indicadores principais, foi feito um tratamento na camada Silver. Quando o valor poderia representar uma situação real da fonte, ele foi mantido e apenas sinalizado para análise.
+As verificações foram feitas nas tabelas do pipeline e os resultados foram comparados com as contagens e consultas apresentadas nas evidências do projeto. Quando um problema exigia tratamento para os cálculos, a regra foi aplicada na Silver e pode ser observada no código do notebook principal.
 
 ### Completude dos dados
 
-A primeira verificação foi feita para identificar campos importantes que estavam vazios.
+Foi verificado se os principais campos usados nos indicadores estavam preenchidos.
 
-Na tabela Silver, foram analisados o CNPJ da classe, o identificador da subclasse, a data, o patrimônio líquido, as captações e os resgates.
+Na Silver, foram analisados o CNPJ da classe, o identificador da subclasse, a data, o patrimônio líquido, as captações e os resgates.
 
 Os resultados foram:
 
@@ -205,65 +236,53 @@ Os resultados foram:
 - captação nula: 0;
 - resgate nulo: 0.
 
-A grande quantidade de identificadores de subclasse nulos não foi tratada como erro. Para permitir a identificação dos registros, foi criada a chave `ID_SUBCLASSE_CHAVE`, que utiliza o valor `__SEM_SUBCLASSE__` quando o campo original está vazio.
-
-Dessa forma, os registros continuam disponíveis no pipeline sem alterar o dado original.
+A grande quantidade de identificadores de subclasse nulos está presente nos dados analisados. Para permitir a formação da chave usada nas verificações, o pipeline cria o campo `ID_SUBCLASSE_CHAVE`, substituindo o valor nulo por `__SEM_SUBCLASSE__`. O campo original `ID_SUBCLASSE` é mantido.
 
 ### Chaves duplicadas
 
-Foi verificado se existiam mais de um registro para a mesma combinação de CNPJ, subclasse e data.
+Foi verificada a existência de mais de um registro para a mesma combinação de CNPJ, subclasse e data.
 
-Na Bronze foram encontrados 3 registros duplicados. Eles correspondiam a 3 linhas excedentes em relação à Silver:
+Na Bronze foram encontrados 3 registros excedentes em relação à Silver:
 
 - Bronze: 1.119.386 registros;
 - Silver: 1.119.383 registros.
 
-Na camada Silver, foi mantido apenas um registro para cada combinação de CNPJ, subclasse e data, usando o registro mais recente de acordo com o horário de ingestão.
-
-Esse tratamento evita que o mesmo dia seja contado duas vezes nos indicadores.
+A regra implementada na Silver mantém somente um registro por chave de CNPJ, subclasse e data. Quando há mais de um registro, é selecionado o registro mais recente pelo horário de ingestão. Essa regra está registrada no notebook principal e a diferença de 3 registros entre Bronze e Silver comprova o efeito do tratamento.
 
 ### Valores negativos
 
-Também foi verificado se existiam valores negativos em campos que, no contexto deste MVP, não deveriam apresentar esse comportamento.
+Também foi feita uma consulta para identificar valores negativos em patrimônio líquido, captação, resgate e número de cotistas.
 
-Foram encontrados:
+Os resultados foram:
 
 - patrimônio líquido negativo: 1.383 registros;
 - captação negativa: 0;
 - resgate negativo: 0;
 - número de cotistas negativo: 0.
 
-Os valores negativos de patrimônio líquido foram mantidos porque o objetivo desta etapa foi identificar e registrar o comportamento existente na fonte, e não criar uma regra que pudesse eliminar informações sem uma justificativa adicional.
-
-Já captações, resgates e número de cotistas não apresentaram valores negativos.
+Os 1.383 registros com patrimônio líquido negativo foram identificados na verificação de qualidade. Como não foi criada uma regra no pipeline para alterar esses valores, eles permanecem na base. Assim, o README registra o que foi encontrado, sem afirmar que esses valores foram corrigidos.
 
 ### Registros inválidos para os indicadores principais
 
-Foram identificados 4.720 registros que não atendiam aos critérios básicos para o cálculo dos principais indicadores.
+Foram identificados 4.720 registros que não atendiam aos critérios definidos no pipeline para a base válida dos principais indicadores.
 
-O principal caso observado foi o patrimônio líquido igual a zero. Como as taxas de resgate e fluxo são calculadas em relação ao patrimônio líquido, esses registros não podem ser usados de forma segura nessas divisões.
+A regra considera válidos os registros que possuem CNPJ, data e patrimônio líquido maior que zero. Essa condição é implementada no campo `is_valid_base`.
 
-Por isso, a Silver possui o campo `is_valid_base`, que identifica os registros que possuem CNPJ, data e patrimônio líquido válido e maior que zero.
-
-Os registros inválidos não foram apagados da Silver. Eles permanecem disponíveis para rastreabilidade, mas não participam dos cálculos que dependem de uma base patrimonial válida.
+Os registros que não atendem a essa condição continuam presentes na Silver. A evidência das contagens mostra que a Silver mantém os 1.119.383 registros, enquanto as etapas de cálculo utilizam a condição de validade quando o indicador depende de um patrimônio líquido válido.
 
 ### Valores extremos nos indicadores
 
-Depois do tratamento básico, também foram procurados valores muito altos na taxa de resgate.
+Foi calculado o P95 da taxa de resgate sobre o patrimônio líquido do dia anterior para identificar valores altos dentro da amostra.
 
-Para isso, foi calculado o percentil 95 (P95) da taxa de resgate sobre o patrimônio líquido do dia anterior. O valor encontrado na amostra foi de aproximadamente 0,43%.
-
-Os registros acima desse valor receberam a marcação `evento_extremo_p95 = 1`.
+O P95 encontrado foi de aproximadamente 0,43%. Os registros acima desse valor recebem a marcação `evento_extremo_p95 = 1`.
 
 Foram encontrados 54.476 eventos acima do P95 na base analisada.
 
-É importante observar que esses valores extremos já estavam presentes nos dados da CVM utilizados como origem. Eles não foram criados pelo pipeline.
-
-Alguns casos apresentaram resgates muito altos em relação ao patrimônio líquido informado no dia anterior. Esses registros foram mantidos porque podem representar situações específicas da movimentação do fundo e, para este MVP, o objetivo é identificá-los e analisá-los, e não eliminá-los automaticamente.
+As consultas de qualidade também permitiram verificar exemplos desses valores na Bronze, mostrando que os valores de origem já apresentavam movimentos de resgate muito altos em relação ao patrimônio líquido informado. Por isso, o tratamento adotado foi marcar esses casos como extremos, e não alterar seus valores.
 
 ### Resultado da etapa de qualidade
 
-Depois dos tratamentos, o pipeline apresentou:
+Depois das transformações, as contagens registradas foram:
 
 | Camada | Registros |
 |---|---:|
@@ -274,9 +293,7 @@ Depois dos tratamentos, o pipeline apresentou:
 
 O período analisado foi de 01/07/2026 a 31/08/2026.
 
-A etapa de qualidade permitiu separar três situações diferentes: problemas que precisavam ser tratados para evitar duplicidade ou cálculo inválido, campos que estavam ausentes na própria fonte e valores extremos que deveriam ser identificados, mas não necessariamente excluídos.
-
-Essa separação foi importante para manter a rastreabilidade dos dados e evitar que o tratamento de qualidade alterasse indevidamente as informações recebidas da fonte.
+As evidências de qualidade mostram, portanto, quais problemas foram encontrados e quais tratamentos foram efetivamente aplicados: a Silver elimina as duplicidades identificadas, cria uma chave para os registros sem subclasse e marca a validade dos registros para os cálculos. Os valores negativos de PL e os valores extremos são identificados, mas não são alterados automaticamente.
 
 ## 9. Resultados analíticos
 
