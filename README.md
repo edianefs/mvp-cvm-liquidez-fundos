@@ -48,7 +48,13 @@ Neste MVP, busco transformar os registros diários da CVM em indicadores que pos
 
 A carga foi realizada no **Databricks Free Edition**, utilizando um Volume do Unity Catalog como área de armazenamento dos arquivos de origem.
 
-O fluxo foi: (1) disponibilização dos arquivos mensais no Volume `workspace.cvm_liquidez.raw`; (2) verificação dos ZIPs pelo notebook principal; (3) extração dos CSVs por mês no próprio Volume; (4) leitura dos CSVs pelo Spark com cabeçalho e separador `;`; e (5) gravação da camada Bronze em formato Delta.
+O fluxo foi:
+
+1. Disponibilização dos arquivos mensais no Volume `workspace.cvm_liquidez.raw`.
+2. Verificação dos ZIPs pelo notebook principal.
+3. Extração dos CSVs por mês no próprio Volume.
+4. Leitura dos CSVs pelo Spark, utilizando cabeçalho e separador `;`.
+5. Gravação da camada Bronze em formato Delta.
 
 O script responsável por essa etapa é `notebooks/01_pipeline_cvm_liquidez.py`. A partir da Bronze, o mesmo notebook executa as transformações para Silver e Gold. A CVM informa que o Informe Diário é disponibilizado em CSV compactado (ZIP).
 
@@ -63,7 +69,7 @@ A modelagem segue a lógica de arquitetura medalhão:
 | Gold diária | `workspace.cvm_liquidez.gold_indicadores_liquidez_diarios` | Produzir indicadores diários e eventos extremos |
 | Gold resumo | `workspace.cvm_liquidez.gold_resumo_liquidez_fundo` | Consolidar indicadores por fundo/classe e período |
 
-O catálogo de dados está implementado em `sql/catalogo.sql` e complementado pelo screenshot do Unity Catalog em `docs/imagens/evidencias%20do%20catalogo%20-%20modelagem%20e%20catalogo%20de%20dados.PNG`.
+O catálogo de dados está implementado em `sql/catalogo.sql` e complementado pelo screenshot do Unity Catalog em `docs/imagens/evidencias do catalogo - modelagem e catalogo de dados.PNG`.
 
 O dicionário da fonte contempla informações como tipo de fundo/classe, identificador, subclasse, data de competência, valor total da carteira, patrimônio líquido, valor da cota, captações, resgates e número de cotistas.
 
@@ -136,7 +142,7 @@ O P95 é um **critério estatístico construído para este MVP** e não represen
 
 `taxa_resgate_acumulada_rel_pl_medio`
 
-representa a razão entre os resgates acumulados no período e o PL médio observado. Por ser acumulado, não deve ser interpretado como percentual do patrimônio resgatado em um único evento.
+Representa a razão entre os resgates acumulados no período e o PL médio observado. Por ser acumulado, não deve ser interpretado como percentual do patrimônio resgatado em um único evento.
 
 ## 8. Qualidade dos dados
 
@@ -171,7 +177,7 @@ Valores extremos foram preservados e sinalizados, em vez de serem excluídos aut
 
 O indicador identifica fundos com maior volume de resgates acumulados em relação ao PL médio do período.
 
-O maior valor observado na amostra foi de aproximadamente **46,31**, referente ao CNPJ `52.984.696/0001-31`. Esse resultado deve ser interpretado como uma razão acumulada entre resgates e PL médio, e não como a afirmação de que o fundo resgatou 46 vezes seu patrimônio em um único evento.
+O maior valor observado na amostra foi de aproximadamente 46,31 vezes o PL médio do período, referente ao CNPJ `52.984.696/0001-31`. Esse resultado deve ser interpretado como uma razão acumulada entre resgates e PL médio, e não como a afirmação de que o fundo resgatou 46 vezes seu patrimônio em um único evento.
 
 ### P2 — Frequência de fluxo líquido negativo
 
@@ -191,7 +197,7 @@ Os resultados de P3 identificam fundos que apresentaram maior quantidade de obse
 
 Foi analisada a série do CNPJ `52.984.696/0001-31` para demonstrar o comportamento dos indicadores ao longo do período.
 
-Em 06/07/2026, por exemplo, foi observado resgate de aproximadamente R$ 26,86 milhões frente a PL anterior de aproximadamente R$ 579,4 mil, resultando em taxa de resgate sobre PL anterior próxima de 46,34.
+Em 06/07/2026, por exemplo, foi observado resgate de aproximadamente R$ 26,86 milhões frente a PL anterior de aproximadamente R$ 579,4 mil, resultando em uma taxa de resgate sobre PL anterior de aproximadamente 46,34 vezes, ou cerca de 4.634%.
 
 O exemplo evidencia por que eventos extremos devem ser preservados e investigados, em vez de removidos automaticamente.
 
@@ -298,7 +304,7 @@ As tabelas utilizadas são:
 
 ## 16. Trabalhos futuros
 
-Este projeto pode ser ampliado para além do contexto acadêmico e servir como ponto de partida para aplicações relacionadas às atividades que realizo na área de compliance, controles internos e gestão de riscos na Banrisul Corretora. A evolução mais natural seria ampliar o período analisado e automatizar a atualização dos dados, permitindo acompanhar os indicadores de forma recorrente e identificar mudanças de comportamento ao longo do tempo. Também seria possível integrar informações cadastrais dos fundos e criar uma visão de acompanhamento das exceções, facilitando a seleção de situações que mereçam uma análise mais detalhada. Em um contexto de trabalho, esses recursos poderiam apoiar rotinas de monitoramento, controles e análises de risco, sempre como instrumentos de apoio e sem substituir os critérios, metodologias e responsabilidades já existentes. A experiência adquirida com este MVP também pode ser aproveitada em outros projetos de análise de dados, especialmente na construção de indicadores e controles que transformem grandes volumes de informações em informações mais úteis para a tomada de decisão.
+Este projeto pode ser ampliado para além do contexto acadêmico e servir como ponto de partida para aplicações relacionadas às atividades que realizo na área de compliance, controles internos e gestão de riscos em uma corretora de valores. A evolução mais natural seria ampliar o período analisado e automatizar a atualização dos dados, permitindo acompanhar os indicadores de forma recorrente e identificar mudanças de comportamento ao longo do tempo. Também seria possível integrar informações cadastrais dos fundos e criar uma visão de acompanhamento das exceções, facilitando a seleção de situações que mereçam uma análise mais detalhada. Em um contexto de trabalho, esses recursos poderiam apoiar rotinas de monitoramento, controles e análises de risco, sempre como instrumentos de apoio e sem substituir os critérios, metodologias e responsabilidades já existentes. A experiência adquirida com este MVP também pode ser aproveitada em outros projetos de análise de dados, especialmente na construção de indicadores e controles que transformem grandes volumes de informações em informações mais úteis para a tomada de decisão.
 
 ## 17. Autoavaliação
 
