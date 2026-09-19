@@ -1,5 +1,4 @@
 -- Catálogo de Dados do MVP
--- Execute depois que as tabelas forem criadas pelo notebook principal.
 -- Documenta contexto, campos, tipos/domínios e linhagem das quatro tabelas.
 
 COMMENT ON TABLE workspace.cvm_liquidez.bronze_informe_diario IS 'Camada Bronze: dados do Informe Diário da CVM preservados a partir dos CSVs de origem, com metadados de arquivo e ingestão.';
